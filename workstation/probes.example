@@ -3,14 +3,18 @@
 # names addresses. This example uses documentation addresses (RFC 5737).
 #
 # data   PATH                 the series' data directory (must be writable)
-# allow  HOST PORT [series]   must connect while preparing; in a series too if marked
-# deny   HOST PORT            must be refused or time out, in both phases
+# allow  HOST PORT [series]   must connect (a service of the environment's own)
+# deny   HOST PORT            must be refused or time out
+#
+# The environment reaches no network at all (ADR 3): what it runs is carried
+# in as files. So the only address that must answer is its own.
 data /srv/series
-# Preparing: the hosts a series fetches from, through the host's allowlist.
-allow 192.0.2.10 3128
-# A series: only what the host lends it.
 allow 127.0.0.1 22 series
-# Never: the host's own services, the local network, the outside directly.
-deny 192.0.2.1 80
+# Never: the host on any port it serves, the local network, the outside.
+deny 192.0.2.1 22
+deny 192.0.2.1 443
+deny 192.0.2.1 445
+deny 198.51.100.1 53
 deny 198.51.100.7 443
 deny 1.1.1.1 443
+deny 8.8.8.8 53
