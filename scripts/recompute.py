@@ -7,8 +7,8 @@ each call.
 
 A series measured on a workstation is not signed by CI. What CI can do is
 take the record of every call (loadgen/calls.py) and compute each level's
-aggregates again, with the formulas of the flagship's scripts/capacity.py,
-and fail when the result differs from what the series reported in the last
+aggregates again, with the formulas of the flagship's scripts/capacity.py and
+its own percentile function, and fail when the result differs from what the series reported in the last
 digit. This proves the numbers follow from the records. It cannot prove the
 records are true; that is why the README says where each was measured, and
 why CI measures the CPU row itself with the same load generator every day.
@@ -24,11 +24,14 @@ import os
 import statistics
 import sys
 
-
-def pct(xs, q):
-    # The same index capacity.py takes, so the same call is the p95 here.
-    xs = sorted(xs)
-    return xs[min(len(xs) - 1, int(round(q * (len(xs) - 1))))] if xs else None
+# The percentile is capacity.py's own, from the release FLAGSHIP names: the
+# nearest rank by Python's round(), which rounds halves to even. A library's
+# percentile would pick another call for the p95 and differ in the last digit.
+FLAGSHIP = os.environ.get("FLAGSHIP")
+if not FLAGSHIP or not os.path.isfile(os.path.join(FLAGSHIP, "scripts", "capacity.py")):
+    sys.exit("FLAGSHIP must name the unpacked flagship release (scripts/sources.sh path flagship)")
+sys.path.insert(0, os.path.join(FLAGSHIP, "scripts"))
+from capacity import pct  # noqa: E402
 
 
 def levels_from(calls_path):

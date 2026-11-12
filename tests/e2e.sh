@@ -22,6 +22,7 @@ MODEL="${MODEL:-granite-4.0-1b}"
 LEVELS="${LEVELS:-1,2}"
 MIN_SECONDS="${MIN_SECONDS:-20}"
 FLAGSHIP="${FLAGSHIP:-$("$ROOT/scripts/sources.sh" path flagship)}"
+export FLAGSHIP
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 checks=(); measured=(); failed=0
