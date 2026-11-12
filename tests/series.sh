@@ -94,6 +94,21 @@ else
   fail "resuming a series: $inv"
 fi
 
+# The conditions changed since the series began: another series, not this one.
+python3 -I - "$work/out/series.json" <<'PY'
+import json, sys
+s = json.load(open(sys.argv[1]))
+s["invocations"][0]["preflight"]["conditions"]["driver_version"] = "0.0"
+json.dump(s, open(sys.argv[1], "w"))
+PY
+if SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" series "$work/out" >"$work/run2b.txt" 2>&1; then
+  fail "a series went on although its conditions had changed since it began"
+elif grep -q "conditions changed since it began (driver_version)" "$work/run2b.txt"; then
+  pass "a series whose conditions changed since it began does not go on, and the changed one is named"
+else
+  fail "a changed condition stopped the series for another reason: $(tail -2 "$work/run2b.txt" | tr '\n' ' ')"
+fi
+
 # Weights that are not the ones the lock pins.
 printf 'x' >>"$work/models/stub-model.gguf"
 if SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" series "$work/out2" >"$work/run3.txt" 2>&1; then

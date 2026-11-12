@@ -19,6 +19,11 @@ goes into OUT/series.json:
 The power limit is the host's to set. With --power-limit-w, only the units
 for that limit run, and only if nvidia-smi reports it.
 
+A series is measured under one set of conditions the environment can see
+(its memory, the driver, the kernel, the card): an invocation whose
+conditions differ from the series' first is refused, and the units it would
+run belong in a new OUT.
+
 For each unit: the server's container on an internal Docker network, its
 time to ready from start, nvidia-smi sampled every 500 ms for the whole
 unit, the flagship's capacity.py through loadgen/calls.py from a client
@@ -128,7 +133,23 @@ def preflight(plan, series, skip_isolation):
                           gpu_query("name,driver_version,memory.used,memory.total,utilization.gpu,power.limit") or []))
     pre["kernel"] = os.uname().release
     pre["docker"] = run(["docker", "version", "--format", "{{.Server.Version}}"]).stdout.strip()
+    pre["conditions"] = conditions(pre)
     return pre, None
+
+
+def conditions(pre):
+    """What a series' numbers depend on and the environment can see: its own
+    memory, the driver, the kernel, the card. A series is measured under one
+    set of them; the host records its own (its memory and the memory's speed)."""
+    mem = None
+    try:
+        for line in open("/proc/meminfo"):
+            if line.startswith("MemTotal:"):
+                mem = int(line.split()[1])
+    except OSError:
+        pass
+    return {"guest_memory_kib": mem, "kernel": pre.get("kernel"),
+            "driver_version": pre.get("gpu", {}).get("driver_version"), "gpu": pre.get("gpu", {}).get("name")}
 
 
 def docker_rm(name):
@@ -233,6 +254,11 @@ def main(argv):
             shutil.rmtree(os.path.join(out, "units", name))
     pre, why = preflight(plan, series, os.environ.get("SERIES_SKIP_ISOLATION_CHECK"))
     inv["preflight"] = pre
+    first = next((i["preflight"]["conditions"] for i in series["invocations"][:-1]
+                  if i.get("preflight", {}).get("conditions")), None)
+    if not why and first is not None and first != pre["conditions"]:
+        why = ("the series' conditions changed since it began (%s): its units would not be one series; start a new OUT"
+               % ", ".join(k for k in sorted(first) if first[k] != pre["conditions"].get(k)))
     if why:
         inv["refused"] = why
         write_json(spath, {k: v for k, v in series.items() if k != "dir"})
