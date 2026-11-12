@@ -36,6 +36,10 @@ flowchart LR
 
 The rules are in the decision records: [ADR 1](docs/decisions/0001-measured-on-a-workstation-recomputed-in-ci.md) (measured on a workstation, recomputed in CI), [ADR 2](docs/decisions/0002-the-flagships-load-server-and-weights-as-released.md) (the flagship's load, server and weights, as released), [ADR 3](docs/decisions/0003-the-host-lends-the-gpu-the-environment-holds-nothing.md) (the host lends the GPU, and the environment holds nothing; proposed until its isolation check has passed on the workstation).
 
+## The models
+
+`models.lock` is in the flagship's format: a name, the publisher's file at a pinned revision, its sha256, its licence, and a fifth field. For a model the flagship's release also serves, the line is the release's own, byte for byte, and the fifth field is the digest of the flagship's signed model image. A model only this repository serves (the sizes of the size curve, a fine-tuned model) says `unpinned` there: its weights are pinned by revision and sha256 like every other, and are hashed again before a server starts, but no CI rebuilds an image of them, since the largest are 20 GB. The flagship reads this file through its `MODELS_LOCK`. Only permissive OSI licences are served, and `scripts/validate.sh models` and `scripts/models.sh` refuse a line without a sha256.
+
 ## Quickstart
 
 On Linux or macOS with Docker, Python 3 and make:

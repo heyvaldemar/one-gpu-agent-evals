@@ -40,6 +40,33 @@ check_pins() {
 
 check_models() {
   local line name theirs n=0
+  # Every line, the release's or this repository's: a name, the publisher's
+  # file at a 40-hex revision, its sha256, a permissive OSI licence, and the
+  # flagship's image digest or `unpinned` (weights pinned by their sha256,
+  # with no image CI rebuilds).
+  if python3 -I - "$ROOT/models.lock" <<'PY'
+import re, sys
+bad = 0
+for n, line in enumerate(open(sys.argv[1]), 1):
+    if not line.strip() or line.lstrip().startswith("#"):
+        continue
+    f = line.split()
+    ok = (len(f) == 5
+          and re.fullmatch(r"[a-z0-9][a-z0-9.-]*", f[0])
+          and re.fullmatch(r"https://huggingface\.co/[\w.-]+/[\w.-]+/resolve/[0-9a-f]{40}/[\w.-]+\.gguf", f[1])
+          and re.fullmatch(r"[0-9a-f]{64}", f[2])
+          and f[3] in ("Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause")
+          and (f[4] == "unpinned" or re.fullmatch(r"sha256:[0-9a-f]{64}", f[4])))
+    if not ok:
+        bad += 1
+        print("FAIL  models: line %d is not 'name url-at-revision sha256 licence digest-or-unpinned': %s" % (n, line.strip()[:120]))
+sys.exit(1 if bad else 0)
+PY
+  then
+    pass "every line names a file at a pinned revision, its sha256, a permissive licence and a digest or unpinned"
+  else
+    failed=1
+  fi
   while read -r line; do
     case "$line" in ''|'#'*) continue ;; esac
     name="${line%% *}"

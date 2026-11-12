@@ -20,12 +20,13 @@ sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum 
 
 read -r url sum license < <(awk -v n="$name" '$1 == n && $0 !~ /^[[:space:]]*#/ {print $2, $3, $4}' "$LOCK" | head -n 1) || true
 [ -n "${url:-}" ] && [ -n "${sum:-}" ] || { echo "models.lock has no line for '$name': not downloading it" >&2; exit 1; }
+[[ "$sum" =~ ^[0-9a-f]{64}$ ]] || { echo "$name: models.lock gives no sha256 for it ('$sum'): not downloading it" >&2; exit 1; }
 case "$ALLOWED" in
   *" $license "*) ;;
   *) echo "$name is licensed '$license', which is not a permissive OSI licence this repository serves" >&2; exit 1 ;;
 esac
 case "$url" in
-  https://huggingface.co/*/resolve/[0-9a-f]*/*) ;;
+  https://huggingface.co/*/*/resolve/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*/*.gguf) ;;
   *) echo "$name: $url is not a file at a pinned revision of a Hugging Face repository" >&2; exit 1 ;;
 esac
 

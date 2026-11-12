@@ -33,6 +33,7 @@ holding one level's records until it ends; each batch is fsynced.
 FLAGSHIP names the directory the flagship's release is unpacked in, verified
 by scripts/sources.sh.
 """
+import hashlib
 import json
 import os
 import sys
@@ -101,7 +102,14 @@ def main(argv):
         sys.exit(__doc__)
     url, out, levels, calls = argv[1], argv[2], [int(x) for x in argv[3].split(",")], argv[4]
     _out = open(calls, "a", encoding="utf-8")
+    # The load, named by the sha256 of the request bodies capacity.py sends,
+    # serialised as the flagship's session computes it: json.dumps with
+    # sort_keys and the defaults otherwise. The same hash means the same
+    # requests; it says nothing about the server or the model.
+    bodies = capacity.requests()
     _write([{"type": "start", "levels": levels, "min_seconds": float(os.environ.get("MIN_SECONDS") or 0),
+             "requests": len(bodies),
+             "requests_sha256": hashlib.sha256(json.dumps(bodies, sort_keys=True).encode()).hexdigest(),
              "server": {k: os.environ.get(k) for k in ("MODEL", "SLOTS", "THREADS", "CONTEXT", "RUNNER_CPUS", "ACCELERATOR")}}])
     capacity.one = _one
     capacity.one_level = _one_level

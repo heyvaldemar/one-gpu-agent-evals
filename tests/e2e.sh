@@ -134,6 +134,18 @@ if [ -n "${RESULTS:-}" ]; then
   /bin/cp -f "$work/capacity.json" "$work/calls.jsonl" "$RESULTS/cpu-$MODEL/"
 fi
 
+# The load is the one the flagship's AWS runs measure with since 30 October
+# (40995734934, 42656218231, 43199517532 and its release v1.9.0): 28 request
+# bodies, sha256 as its session computed it. A row beside theirs is worth
+# reading only on the same requests.
+WORKLOAD_SHA256=603153b0dc5fd6abc0109c2ab5b9ee069603239e43509771f1884ee64be7aa95
+load="$(python3 -I -c 'import json, sys; r = json.loads(open(sys.argv[1]).readline()); print(r.get("requests"), r.get("requests_sha256"))' "$work/calls.jsonl" 2>/dev/null)"
+if [ "${load#* }" = "$WORKLOAD_SHA256" ]; then
+  pass "the load is the flagship's: ${load%% *} request bodies, sha256 ${WORKLOAD_SHA256:0:16}..., as in its AWS runs since 30 October"
+else
+  fail "the load is not the flagship's AWS runs' load: '${load:-no start record}', expected sha256 ${WORKLOAD_SHA256:0:16}..."
+fi
+
 python3 -I "$ROOT/scripts/recompute.py" check "$work/capacity.json" "$work/calls.jsonl" >"$work/recompute.txt"
 while IFS= read -r line; do
   case "$line" in
