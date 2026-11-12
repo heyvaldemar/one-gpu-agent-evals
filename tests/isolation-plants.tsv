@@ -1,0 +1,8 @@
+# file	old	new	what tests/isolation.sh must notice
+"workstation/isolation_check.py"	"letters = [d for d in \"cdefghijklmnopqrstuvwxyz\""	"letters = [d for d in \"\""	"the check no longer looks for a host's drive under /mnt"
+"workstation/isolation_check.py"	"r\"(TOKEN|SECRET|"	"r\"(SECRET|"	"the check takes a variable named like a token for harmless"
+"workstation/isolation_check.py"	"\".git-credentials\", "	""	"the check no longer looks for git's credential file"
+"workstation/isolation_check.py"	"for var in (\"WSL_INTEROP\", \"WSL_DISTRO_NAME\"):"	"for var in ():"	"the check no longer looks for an interop variable"
+"workstation/isolation_check.py"	"report(\"FAIL\" if ok else \"PASS\", \"network\""	"report(\"PASS\", \"network\""	"the check passes a denied address that answers"
+"workstation/isolation_check.py"	"report(\"PASS\" if ok else \"FAIL\", \"network\", \"the control"	"report(\"PASS\", \"network\", \"the control"	"the check passes a control address that does not answer"
+"workstation/isolation_check.py"	"report(\"FAIL\", \"host-mount\", \"the control: root cannot mount even a tmpfs"	"report(\"PASS\", \"host-mount\", \"the control: root cannot mount even a tmpfs"	"the check takes refusals for proof when root can mount nothing at all"

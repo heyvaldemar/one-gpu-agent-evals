@@ -64,7 +64,15 @@ jobs:
           shellcheck scripts/*.sh tests/*.sh
 
       - name: The Python compiles
-        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py tests/stub_server.py tests/plant-violations.py
+        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py workstation/isolation_check.py tests/stub_server.py tests/plant-violations.py
+
+      # The workstation's isolation check (ADR 3), shown a closed container
+      # and each way of opening it, and broken in turn: it is trusted on the
+      # workstation only after it has failed here.
+      - name: The isolation check, and the breaks it exists for
+        run: |
+          ./tests/isolation.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          PLANTS=tests/isolation-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/isolation.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
       # cosign and slsa-verifier come first: they verify the flagship's
       # release before anything in it is read (scripts/sources.sh).
