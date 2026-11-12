@@ -34,7 +34,7 @@ flowchart LR
   K[CI: the same load generator on kind, CPU row] --> CI
 ```
 
-The rules are in the decision records: [ADR 1](docs/decisions/0001-measured-on-a-workstation-recomputed-in-ci.md) (measured on a workstation, recomputed in CI), [ADR 2](docs/decisions/0002-the-flagships-load-server-and-weights-as-released.md) (the flagship's load, server and weights, as released), [ADR 3](docs/decisions/0003-the-host-lends-the-gpu-the-environment-holds-nothing.md) (the host lends the GPU, and the environment holds nothing; proposed until its isolation check has passed on the workstation).
+The rules are in the decision records: [ADR 1](docs/decisions/0001-measured-on-a-workstation-recomputed-in-ci.md) (measured on a workstation, recomputed in CI), [ADR 2](docs/decisions/0002-the-flagships-load-server-and-weights-as-released.md) (the flagship's load, server and weights, as released), [ADR 3](docs/decisions/0003-the-host-lends-the-gpu-the-environment-holds-nothing.md) (the host lends the GPU, and the environment holds nothing: a Hyper-V guest with GPU-P on a Windows 11 workstation, with no network, whose isolation check failed open and passed closed).
 
 ## The models
 

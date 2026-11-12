@@ -1,6 +1,6 @@
 # 3. The host lends the GPU, and the environment holds nothing
 
-- Status: proposed. It becomes accepted when the probes have chosen the environment and the isolation check below has passed on it, after first failing on it before it was closed.
+- Status: accepted. The probes chose a Hyper-V guest with GPU-P, and the isolation check passed on it closed after failing on it open ("On the workstation, 2026-11-12" below).
 - Date: 2026-11-12
 
 ## Context
@@ -14,7 +14,8 @@ Two kinds of environment can give a Linux series that GPU on Windows 11:
 
 ## Decision
 
-- **A Hyper-V guest with GPU-P, if the GPU works in it.** Two probes on the workstation, one of each kind above, decide; their findings are recorded here when they are in. A WSL2 distribution is the fallback, named as such wherever its numbers appear.
+- **A Hyper-V guest with GPU-P.** Two probes on the workstation, one of each kind above, decided it (below). The guest has one adapter, on a switch that carries nothing but it and the host, with no NAT and no route out; the host's firewall refuses everything that comes in from that switch. The guest boots Microsoft's WSL2 kernel, which carries `dxgkrnl`, with Ubuntu's kernel kept as the fallback; Secure Boot is off for that reason. The host driver's user-mode libraries are copied in, and the host compares the driver, the libraries and the kernel with the guest's manifest before every block, and copies them again when one has changed.
+- **Started by the host's scheduler.** A block is started by a scheduled task on the host, never by an interactive session: a session can end, and take what it started with it.
 - **A closed environment.** The series run in an environment of their own on the workstation. It has no path to the host's files, starts no program of the host's, and holds no credential of any kind. It reaches no network, ever: not while a series runs and not while it is being prepared.
 - **Everything it runs is carried in as files.** The packages, the images by digest, the weights by sha256 and the flagship's release are fetched outside it, each checked against its signature or its pinned hash where it was fetched, copied in, and checked again inside before anything uses it. The list of what was carried in, with each file's hash and where it came from, goes into every series' manifest. This is the flagship's own way across an air gap (its ADR 8): one set of files, each checked on the far side. A proxy on the host for the environment to fetch through was considered and not built: it would be a service of the host the environment can reach, and a hole in the wall in the one place the wall is shown to be closed.
 - **Results leave only when the host collects them**, over a connection the host opens.
@@ -23,6 +24,14 @@ Two kinds of environment can give a Linux series that GPU on Windows 11:
 - **A series survives the power going off.** A series is a list of units: a level of concurrency, an attempt of a task, a step of training. Each finished unit is on disk before the next starts. After an interruption the series continues from the first unit not finished; a level of concurrency is measured again whole, since a rate is read from one unbroken window. Every interruption is recorded with its time.
 - **Published after review.** The host keeps the results privately. They are checked against their hashes, cleaned of anything that would name or locate the workstation or its network, refused if anything of that kind is left, and only then committed here, where CI recomputes them (ADR 1).
 - **Only open weights under permissive licences**, pinned by revision and sha256 in `models.lock` (ADR 2). Nothing the host keeps for its own use is read.
+
+## On the workstation, 2026-11-12
+
+- **A WSL2 distribution under the same Windows account** (the first probe), closed by `wsl.conf` and given nothing: it shared one network namespace with Docker Desktop's distribution, so another distribution's services on loopback answered it; root mounted the host's system drive with `drvfs` although automount was off; its memory was the one utility VM's. Starting a program of the host failed, since the host did not serve the interop channel. The isolation check failed on it, as it had to: host-mount, network (another distribution's loopback service, the host, the outside), host-files (the host's driver store, mounted read-only) and host-programs (the interop channel). That run also took the D-Bus session address for a secret, which led to the list of variables a systemd session sets.
+- **A Hyper-V guest with GPU-P** (the second probe), installed from Ubuntu 24.04.5's server image after its checksum file's signature and the image's sha256 were checked, with no network. It booted the WSL2 kernel on the first try; `nvidia-smi` in it named the RTX 4090 with the host's UUID, and the driver's libraries were found with no path given.
+  - **Open** (the host's firewall rule off, and a temporary second adapter on a NAT switch): the check failed, 8 of 24, on the host on two ports, the local network and the outside.
+  - **Closed** (that adapter removed, the rule on, and root inside adding a default route through the host first, as a hostile guest would): the check passed, 24 of 24. No IPv6 address on the guest's adapter.
+- Not yet measured: whether the host's memory holds the guest's demand under load (the first try did not touch the pages it asked for), and a CUDA computation in the guest (only `nvidia-smi` ran).
 
 ## Consequences
 
