@@ -1,14 +1,20 @@
 # 3. The host lends the GPU, and the environment holds nothing
 
-- Status: proposed. It becomes accepted when the isolation check below has passed on the workstation, after first failing on an environment that was not yet closed.
+- Status: proposed. It becomes accepted when the probes have chosen the environment and the isolation check below has passed on it, after first failing on it before it was closed.
 - Date: 2026-11-12
 
 ## Context
 
-The workstation is somebody's machine first. Its GPU serves other work most of the day, its disks hold things this repository must never read, and its power can go off in the middle of a run. A series of measurements runs there for minutes to hours, fetches public code and weights, and writes results that are published only after review.
+The workstation is a Windows 11 machine with an RTX 4090, and it is somebody's machine first. Its GPU serves other work most of the day, its disks hold things this repository must never read, and its power can go off in the middle of a run. A series of measurements runs there for minutes to hours, fetches public code and weights, and writes results that are published only after review.
+
+Two kinds of environment can give a Linux series that GPU on Windows 11:
+
+- **A Hyper-V guest with GPU-P** (GPU partitioning). Its own kernel, its own virtual switch and network, its own Docker, no driver for the host's filesystems and no way to start the host's programs, and checkpoints to start every series from the same state. For a Linux guest on a Windows client the GPU path is not supported by Microsoft or NVIDIA: the guest needs the `dxgkrnl` module and a copy of the host driver's user-mode libraries, and both have to be brought back in line after every driver update on the host.
+- **A WSL2 distribution.** CUDA there is supported by NVIDIA. But every WSL2 distribution runs in one utility VM with one kernel, shares its network with the other distributions on the machine, and is given the host's drives by a file server on the host: `automount = false` and `interop = false` are settings, and root inside can mount a drive and register a way to start the host's programs again. Its boundary is weaker, and a series run there would say so.
 
 ## Decision
 
+- **A Hyper-V guest with GPU-P, if the GPU works in it.** Two probes on the workstation, one of each kind above, decide; their findings are recorded here when they are in. A WSL2 distribution is the fallback, named as such wherever its numbers appear.
 - **A closed environment.** The series run in an environment of their own on the workstation. It has no path to the host's files and starts no program of the host's. It holds no credential of any kind: public code and weights are fetched anonymously, and the results leave it only when the host collects them. While it is being prepared it reaches the outside only through an allowlist of the hosts it fetches from; during a series it reaches nothing.
 - **Checked before every series.** `workstation/isolation_check.py` runs as root before each series and its result goes into the series' manifest. It tries each thing the environment must not do, each beside a control that must succeed: find a filesystem of the host mounted or a drive under `/mnt` (control: the series' data directory is writable); mount the host's drives itself (control: a tmpfs mounts, so a refusal is the host's and not mount's); start a program of the host; find a credential (by name only, never printing a value); reach an address its probes deny (control: an address they allow answers). The probes name addresses and live only in the environment; `workstation/probes.example` shows their form. In CI, `tests/isolation.sh` shows the check a closed container and eight ways of opening it, each of which it must name, and `tests/isolation-plants.tsv` breaks the check seven ways. On the workstation it is trusted only after it has failed on the environment before it was closed.
 - **The host lends the GPU.** The environment cannot take the GPU. The host takes it from its other users for a fixed time, starts the environment, and gives the GPU back when the series ends or its time runs out, whichever comes first. The GPU's power limit for long series is set by the host and recorded in the manifest.
