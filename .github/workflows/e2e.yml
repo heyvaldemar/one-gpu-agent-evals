@@ -64,7 +64,7 @@ jobs:
           shellcheck scripts/*.sh tests/*.sh
 
       - name: The Python compiles
-        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py workstation/isolation_check.py tests/stub_server.py tests/plant-violations.py
+        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py workstation/isolation_check.py workstation/run_series.py tests/stub_server.py tests/plant-violations.py
 
       # The workstation's isolation check (ADR 3), shown a closed container
       # and each way of opening it, and broken in turn: it is trusted on the
@@ -86,6 +86,14 @@ jobs:
         run: |
           ./scripts/validate.sh | tee -a "$GITHUB_STEP_SUMMARY"
           PLANTS=tests/static-plants.tsv python3 -I -u tests/plant-violations.py -- bash scripts/validate.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The workstation's series runner (ADR 3), on a plan whose server is the
+      # stub in a container: a whole series, a unit cut short and redone, a
+      # model file that is not the pinned one, an isolation check that fails.
+      - name: The series runner, and the breaks it exists for
+        run: |
+          ./tests/series.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          PLANTS=tests/series-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/series.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: The load generator and the recomputation, and the breaks they exist for
         run: |

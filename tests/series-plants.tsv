@@ -1,0 +1,7 @@
+# file	old	new	what tests/series.sh must notice
+"workstation/run_series.py"	"            inv[\"interrupted_units\"].append(name[:-len(\".partial\")])\n"	"            pass\n"	"a unit cut short is not recorded as interrupted"
+"workstation/run_series.py"	"        if got != lock[name][\"sha256\"]:\n"	"        if False:\n"	"the runner does not compare a model file with its lock"
+"workstation/run_series.py"	"            return pre, \"the isolation check failed: the series does not start in an open environment\"\n"	"            pass\n"	"the runner starts a series whose isolation check failed"
+"workstation/run_series.py"	"        if os.path.exists(os.path.join(final, \"done\")):\n"	"        if False:\n"	"the runner measures a unit done before again"
+"workstation/run_series.py"	"if n != \"SHA256SUMS\")"	"if n not in (\"SHA256SUMS\", \"calls.jsonl\"))"	"a unit's SHA256SUMS leaves the call records out"
+"workstation/run_series.py"	"pre[\"isolation\"] = {\"state\": \"not checked\", \"why\": skip_isolation}"	"pre[\"isolation\"] = {}"	"a skipped isolation check is not recorded as skipped"

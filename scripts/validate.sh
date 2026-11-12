@@ -12,6 +12,9 @@
 #   deploy  every image a manifest under deploy/ names is pinned by digest and
 #           is one images.lock names
 #   kind    cluster/kind.yaml starts the node image images.lock pins
+#   plan    every workstation plan serves with the release's GPU server's
+#           arguments (manifests/inference/llama-gpu.yaml), but for the
+#           model's path and name, and runs the images images.lock pins
 # tests/static-plants.tsv breaks each of them; each must notice.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -128,7 +131,43 @@ check_kind() {
   fi
 }
 
-all=(pins models args deploy kind)
+check_plan() {
+  local f n=0
+  for f in "$ROOT"/workstation/plans/*.json; do
+    [ -e "$f" ] || continue
+    n=$((n + 1))
+    if python3 -I - "$FLAGSHIP/manifests/inference/llama-gpu.yaml" "$f" "$ROOT/images.lock" <<'PY'
+import json, re, sys
+m = re.search(r'args: \[(.*?)\]', open(sys.argv[1]).read(), re.S)
+theirs = re.findall(r'"([^"]*)"', m.group(1)) if m else []
+plan = json.load(open(sys.argv[2]))
+ours = list(plan["server"]["args"])
+for a in (theirs, ours):
+    for flag in ("-m", "--alias"):
+        if flag in a:
+            a[a.index(flag) + 1] = "*"
+pins = dict(re.findall(r"^([A-Z0-9_]+_IMAGE)=(\S+)$", open(sys.argv[3]).read(), re.M))
+bad = []
+if not theirs or ours != theirs:
+    bad.append("its server's arguments %s are not the release's GPU server's %s" % (ours, theirs))
+if plan["images"]["server"] != pins.get("LLAMA_CUDA_IMAGE"):
+    bad.append("its server image is not LLAMA_CUDA_IMAGE")
+if plan["images"]["client"] != pins.get("PYTHON_IMAGE"):
+    bad.append("its client image is not PYTHON_IMAGE")
+for b in bad:
+    print("FAIL  plan: %s: %s" % (sys.argv[2].rsplit("/", 1)[-1], b))
+sys.exit(1 if bad else 0)
+PY
+    then
+      pass "$(basename "$f"): the release's GPU server's arguments, and the images images.lock pins"
+    else
+      failed=1
+    fi
+  done
+  [ "$n" -gt 0 ] || fail "no plan under workstation/plans"
+}
+
+all=(pins models args deploy kind plan)
 for check in "${@:-${all[@]}}"; do
   if [[ " ${all[*]} " != *" $check "* ]]; then
     echo "no check named $check (checks: ${all[*]})" >&2
@@ -140,6 +179,7 @@ for check in "${@:-${all[@]}}"; do
     args) check_args ;;
     deploy) check_deploy ;;
     kind) check_kind ;;
+    plan) check_plan ;;
   esac
 done
 exit "$failed"

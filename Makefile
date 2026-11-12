@@ -18,6 +18,8 @@ check: tools
 	FLAGSHIP="$(FLAGSHIP_DIR)" PLANTS=tests/recompute-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/recompute.sh
 	./tests/isolation.sh
 	PLANTS=tests/isolation-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/isolation.sh
+	./tests/series.sh
+	FLAGSHIP="$(FLAGSHIP_DIR)" PLANTS=tests/series-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/series.sh
 
 up: tools
 	./scripts/up.sh

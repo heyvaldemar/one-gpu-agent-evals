@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""stub_server.py PORT - an OpenAI-compatible server that answers at once.
+"""stub_server.py PORT [ADDRESS] - an OpenAI-compatible server that answers at once.
 
-For tests/recompute.sh only: the load generator and the recomputation are
+For tests/recompute.sh and tests/series.sh: the load generator, the
+recomputation and the series runner are
 tested against it in seconds, without a model. Every answer takes a short,
 varying time and reports token counts, and every seventh is an HTTP 500, so
 the records hold failed calls as well as answered ones.
@@ -46,4 +47,4 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
+    ThreadingHTTPServer((sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
