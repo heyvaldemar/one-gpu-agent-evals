@@ -42,8 +42,14 @@ import tempfile
 
 HOST_FS = {"drvfs", "9p", "virtiofs", "cifs", "smb3", "smbfs", "nfs", "nfs4", "fuse.sshfs"}
 SECRET_NAME = re.compile(r"(TOKEN|SECRET|PASSW|PASSWD|PWD|KEY|CRED|AUTH|SESSION|COOKIE)", re.I)
-# Names a secret check must not flag: variables of the shell and of this check.
-HARMLESS = {"OLDPWD", "PWD", "XAUTHORITY", "HISTCONTROL", "KEYTIMEOUT"}
+# Names the secret check must not flag: variables of the shell, and the ones
+# systemd and a login session set on their own, which name a bus or a session
+# and hold nothing to steal. DBUS_SESSION_BUS_ADDRESS was the first false alarm,
+# on the workstation's own first run. SSH_AUTH_SOCK is not among them: an SSH
+# agent's socket lends whoever reaches it the keys behind it.
+HARMLESS = {"OLDPWD", "PWD", "XAUTHORITY", "HISTCONTROL", "KEYTIMEOUT",
+            "DBUS_SESSION_BUS_ADDRESS", "XDG_SESSION_ID", "XDG_SESSION_TYPE", "XDG_SESSION_CLASS",
+            "XDG_SESSION_DESKTOP", "DESKTOP_SESSION"}
 CREDENTIAL_FILES = [
     ".git-credentials", ".config/gh/hosts.yml", ".docker/config.json", ".netrc", ".npmrc", ".pypirc",
     ".aws/credentials", ".config/gcloud/credentials.db", ".azure/accessTokens.json", ".kube/config",
@@ -100,8 +106,10 @@ def try_mount(fstype, source, target, opts=None):
     if r.returncode == 0:
         subprocess.run(["umount", target], capture_output=True)
         return True, ""
-    said = (r.stderr or r.stdout).strip().splitlines()
-    return False, said[-1] if said else "refused"
+    # The first line mount says is the reason; util-linux adds a line about
+    # dmesg after it.
+    said = [l.strip() for l in (r.stderr or r.stdout).splitlines() if l.strip()]
+    return False, said[0] if said else "refused"
 
 
 def check_host_mount():

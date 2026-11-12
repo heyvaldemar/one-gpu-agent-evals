@@ -4,11 +4,14 @@
 #
 # The environment is a container of the flagship's Python image: no network,
 # a clean environment, a data directory, root with the one capability a mount
-# needs, so the check's own control (a tmpfs) can mount. That must pass. Then
+# needs, so the check's own control (a tmpfs) can mount. That must pass, and so
+# must the same with the variables a systemd session sets on its own (the
+# workstation's first run took DBUS_SESSION_BUS_ADDRESS for a secret). Then
 # one opening at a time, each of which must fail the check, and the check
 # that names it:
 #   - a host's drive visible at /mnt/c;
 #   - a variable named like a secret;
+#   - an SSH agent's socket;
 #   - a git credential file in root's home;
 #   - an interop variable;
 #   - an address the probes deny that answers;
@@ -73,6 +76,9 @@ import time; time.sleep(60)' &
 
 export PROBES="$probes"
 run "a closed environment" pass "" -e PROBES
+run "a closed environment with the variables a systemd session sets" pass "" -e PROBES \
+  -e EXTRA_ENV="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus XDG_SESSION_ID=1 XDG_SESSION_TYPE=tty"
+run "an SSH agent's socket" fail credentials -e PROBES -e EXTRA_ENV=SSH_AUTH_SOCK=/tmp/ssh-agent.sock
 run "a host's drive at /mnt/c" fail host-files -e PROBES -- 'mkdir -p /mnt/c/Users && touch /mnt/c/Users/x'
 run "a variable named like a secret" fail credentials -e PROBES -e EXTRA_ENV=HF_TOKEN=x
 run "a git credential file in root's home" fail credentials -e PROBES -- 'printf "https://u:p@example.com\n" > /root/.git-credentials'

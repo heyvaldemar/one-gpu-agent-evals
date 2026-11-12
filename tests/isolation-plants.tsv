@@ -6,3 +6,4 @@
 "workstation/isolation_check.py"	"report(\"FAIL\" if ok else \"PASS\", \"network\""	"report(\"PASS\", \"network\""	"the check passes a denied address that answers"
 "workstation/isolation_check.py"	"report(\"PASS\" if ok else \"FAIL\", \"network\", \"the control"	"report(\"PASS\", \"network\", \"the control"	"the check passes a control address that does not answer"
 "workstation/isolation_check.py"	"report(\"FAIL\", \"host-mount\", \"the control: root cannot mount even a tmpfs"	"report(\"PASS\", \"host-mount\", \"the control: root cannot mount even a tmpfs"	"the check takes refusals for proof when root can mount nothing at all"
+"workstation/isolation_check.py"	"\"DBUS_SESSION_BUS_ADDRESS\", "	""	"the check takes the D-Bus session address for a secret"
