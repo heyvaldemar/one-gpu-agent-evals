@@ -1,0 +1,165 @@
+name: E2E
+
+# What CI can hold of numbers measured on a workstation: the load generator
+# the workstation runs, run here on a kind cluster against the flagship's CPU
+# server, with every number it reports computed again from the record of
+# each call; the static checks that hold this repository to the flagship's
+# release; and each check shown the breaks it exists for. On every push to
+# main, every pull request, a dispatch, and every day once the repository is
+# public (while it is private, the schedule runs the checks without a
+# cluster, so that it costs the account's minutes nothing beyond those).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "43 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+# bash with pipefail: a step that pipes a test into tee fails when the test
+# does. GitHub's default for a run step is `bash -e`, under which tee's exit
+# status is the step's.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  repo:
+    name: Is the repository public
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      public: ${{ steps.ask.outputs.public }}
+    steps:
+      - name: Ask the API
+        id: ask
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          private="$(gh api "repos/$REPO" --jq .private)"
+          echo "public=$([ "$private" = false ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  lint:
+    name: Static checks and the recomputation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: ShellCheck
+        run: |
+          shellcheck --version
+          shellcheck scripts/*.sh tests/*.sh
+
+      - name: The Python compiles
+        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py tests/stub_server.py tests/plant-violations.py
+
+      # cosign and slsa-verifier come first: they verify the flagship's
+      # release before anything in it is read (scripts/sources.sh).
+      - name: Tools, pinned and checked
+        run: echo "$(./scripts/install-tools.sh)" >> "$GITHUB_PATH"
+
+      - name: The flagship's release, verified as a stranger would
+        run: echo "FLAGSHIP=$(./scripts/sources.sh path flagship)" >> "$GITHUB_ENV"
+
+      - name: The static checks, and the breaks they exist for
+        run: |
+          ./scripts/validate.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          PLANTS=tests/static-plants.tsv python3 -I -u tests/plant-violations.py -- bash scripts/validate.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: The load generator and the recomputation, and the breaks they exist for
+        run: |
+          ./tests/recompute.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          PLANTS=tests/recompute-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/recompute.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+  e2e:
+    name: The CPU row on kind, recomputed from its records
+    runs-on: ubuntu-latest
+    needs: [repo, lint]
+    if: github.event_name != 'schedule' || needs.repo.outputs.public == 'true'
+    # Up takes about three minutes with the weights' download, the series
+    # about two; the plants run the series again on the same cluster, once
+    # for each row of tests/plants.tsv.
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # kind from github.com/kubernetes-sigs/kind/releases, kubectl from
+      # dl.k8s.io, cosign and slsa-verifier: each by the version and sha256
+      # tools.lock pins.
+      - name: Tools, pinned and checked
+        run: echo "$(./scripts/install-tools.sh)" >> "$GITHUB_PATH"
+
+      - name: Up
+        run: |
+          ./scripts/up.sh
+          echo "FLAGSHIP=$(./scripts/sources.sh path flagship)" >> "$GITHUB_ENV"
+
+      # E2E_RESULTS on this step only: the plants below run the same script
+      # again for each row, and a copy they wrote would be a plant's.
+      - name: The CPU row
+        env:
+          RESULTS: ${{ runner.temp }}/results
+          E2E_RESULTS: ${{ runner.temp }}/e2e-results.json
+        run: ./tests/e2e.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the series and its call records
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: results
+          path: ${{ runner.temp }}/results/
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: The tests, shown each break they exist for
+        id: plants
+        if: github.event_name != 'pull_request'
+        env:
+          SOURCES_CACHE: ${{ github.workspace }}/.cache/sources
+        run: python3 -I -u tests/plant-violations.py -- bash tests/e2e.sh | tee -a "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/plants.txt"
+
+      # The plants' verdict as one more check, so a run that is red because a
+      # check missed its break does not read as every check passed.
+      - name: The plants' verdict, as a check
+        if: always() && steps.plants.outcome != 'skipped'
+        env:
+          E2E_RESULTS: ${{ runner.temp }}/e2e-results.json
+          OUTCOME: ${{ steps.plants.outcome }}
+        run: |
+          [ -f "$E2E_RESULTS" ] || exit 0
+          python3 -I - <<'PY'
+          import json, os, re
+          path, said = os.environ["E2E_RESULTS"], os.path.join(os.environ["RUNNER_TEMP"], "plants.txt")
+          text = open(said, encoding="utf-8").read() if os.path.exists(said) else ""
+          verdict = re.findall(r"^\d+ plants: .*$", text, re.M)
+          d = json.load(open(path, encoding="utf-8"))
+          d["checks"].append({"state": "PASS" if os.environ["OUTCOME"] == "success" else "FAIL",
+                              "name": "every check shown the break it exists for (tests/plants.tsv): "
+                                      + (verdict[-1] if verdict else "the plants did not finish")})
+          json.dump(d, open(path, "w", encoding="utf-8"), indent=2)
+          PY
+
+      - name: Keep the checks and measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-results
+          path: ${{ runner.temp }}/e2e-results.json
+          if-no-files-found: ignore
+          retention-days: 30

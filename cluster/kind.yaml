@@ -1,0 +1,14 @@
+# One kind node for the CPU row CI measures (tests/e2e.sh). The node image is
+# the one images.lock pins; scripts/validate.sh fails when they differ.
+# @MODELS@ is filled in by scripts/up.sh with the directory scripts/models.sh
+# downloads into, so the node sees the checked weights at /models and nothing
+# else of the runner's disk.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    extraMounts:
+      - hostPath: "@MODELS@"
+        containerPath: /models
+        readOnly: true

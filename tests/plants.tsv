@@ -1,0 +1,5 @@
+# file	old	new	what tests/e2e.sh must notice
+"models.lock"	"22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f1"	"22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f0"	"the server starts on weights whose sha256 is not the one models.lock pins"
+"deploy/model-server.yaml"	"command: [\"sh\", \"-c\", \"echo \\\"$SHA256  /models/$MODEL.gguf\\\" | sha256sum -c -\"]"	"command: [\"sh\", \"-c\", \"true\"]"	"the pod no longer hashes the weights before the server starts"
+"loadgen/calls.py"	"    _level = c\n"	"    _level = None\n"	"the load generator records the timed calls under no level"
+"tests/e2e.sh"	"pods=\"$(kubectl get pods --all-namespaces -o json)\"\n"	"kubectl -n default run plant-stray --image=registry.k8s.io/pause:3.10 --restart=Never >/dev/null 2>&1 || true\nsleep 2\npods=\"$(kubectl get pods --all-namespaces -o json)\"\nkubectl -n default delete pod plant-stray --now >/dev/null 2>&1 || true\n"	"a pod runs an image images.lock does not name"

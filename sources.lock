@@ -1,0 +1,13 @@
+# The releases this repository reads, each at one tag. Nothing is read from a
+# branch. scripts/sources.sh refuses an archive unless all three hold: its
+# sha256 is the one below, cosign verifies its keyless signature as made by
+# that repository's release workflow on this tag, and slsa-verifier verifies
+# its SLSA provenance for this tag.
+#
+# The flagship gives the load generator (scripts/capacity.py), the agent's
+# calls it sends (evals/), the tool table and policy it offers (manifests/mcp/),
+# the model server's image and arguments, and the models' lines. The same
+# release and archive hash as heyvaldemar/agent-security-benchmark pins.
+#
+# name  repository  tag  sha256-of-the-source-archive
+flagship heyvaldemar/kubernetes-air-gapped-ai-agent v1.9.0 623da314d0e2c13a29bc85ef60cdf5ab975f542f3342448721e898fc6e29cb4d

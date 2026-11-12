@@ -1,0 +1,16 @@
+# Changelog
+
+All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
+
+<!-- conformance: first release not before 2026-12-01 - the first series measured on the workstation, reviewed and recomputed here, comes first -->
+
+## [Unreleased]
+
+### Added
+
+- `loadgen/calls.py`: the flagship's `scripts/capacity.py`, from its verified release and unchanged, with every call it makes and every level's wall time written to a record, each on disk before the next ([ADR 1](docs/decisions/0001-measured-on-a-workstation-recomputed-in-ci.md)).
+- `scripts/recompute.py`: every level's aggregates computed again from those records with capacity.py's formulas, failing on any difference and on records that are not whole. `tests/recompute.sh` runs it on a stub server's series and on four damaged copies, and `tests/recompute-plants.tsv` breaks the recorder and the recomputation six ways, each of which the test notices.
+- `sources.lock` and `scripts/sources.sh`: the flagship's release v1.9.0, read only after its sha256, its cosign signature and its SLSA provenance pass. `models.lock` and `scripts/models.sh`: weights by the flagship's lines, from the publisher at the pinned revision, refused on another sha256 or a licence that is not a permissive OSI one. `images.lock`: the flagship's server, Python and busybox images by its digests ([ADR 2](docs/decisions/0002-the-flagships-load-server-and-weights-as-released.md)).
+- `scripts/validate.sh`: five static checks (`pins`, `models`, `args`, `deploy`, `kind`) that hold this repository to the flagship's release, and `tests/static-plants.tsv`, seven breaks, each of which they notice.
+- `tests/e2e.sh` on kind: the flagship's CPU server with the release's arguments and weights, the load from a Job beside it, the pod's own hash of the weights and a control pod that must refuse them under another hash, every level recomputed from its records, and every pod's image one `images.lock` names. `tests/plants.tsv` breaks it four ways.
+- [ADR 3](docs/decisions/0003-the-host-lends-the-gpu-the-environment-holds-nothing.md), proposed: how a series runs on the workstation, in an environment that holds nothing, with the GPU lent by the host, surviving a power cut.

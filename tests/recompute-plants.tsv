@@ -1,0 +1,7 @@
+# file	old	new	what tests/recompute.sh must notice
+"loadgen/calls.py"	"\"ok\": r[\"ok\"]"	"\"ok\": True"	"the load generator records a failed call as answered"
+"loadgen/calls.py"	"    _level = c\n"	"    _level = None\n"	"the load generator records the timed calls under no level"
+"scripts/recompute.py"	"    if not ended:\n"	"    if False:\n"	"the recomputation takes a series that stopped before its end"
+"scripts/recompute.py"	"if rep.get(k) != v}"	"if k == \"calls\" and rep.get(k) != v}"	"the recomputation compares the number of calls and nothing else"
+"scripts/recompute.py"	"    ok = [d for d in done if d[\"ok\"]]\n"	"    ok = done\n"	"the recomputation counts a failed call as answered"
+"tests/stub_server.py"	"if n % 7 == 0:"	"if n % 100000 == 0:"	"the stub never fails a call, so a failed call is never recomputed"

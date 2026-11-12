@@ -1,0 +1,29 @@
+# Every image this repository runs, pinned by digest: the model server and
+# the load generator's by the digests the flagship's release v1.9.0 pins
+# (airgap/images.txt, airgap/images-gpu.txt), and scripts/validate.sh fails
+# when one differs from the release sources.lock names. kind's own images are
+# pinned by the digest of the node image that carries them.
+#
+# llama.cpp's server on CPU, the build the flagship's evals run on.
+LLAMA_CPU_IMAGE=ghcr.io/ggml-org/llama.cpp:server-b11429@sha256:2f8ebc2dde83c4bd7e5c6d61efa57965e0d5a79d29802c246c4593740d9c04c1
+# The same release built for CUDA, the flagship's GPU server (ADR 19 there).
+# On the workstation only; CI has no GPU.
+LLAMA_CUDA_IMAGE=ghcr.io/ggml-org/llama.cpp:server-cuda-b11429@sha256:a863a2d1dc2cbc5326c995ae380eec9c57f37a7e1cac944f0c6f43e4e9afff23
+# The load generator's interpreter: the image the flagship's own capacity Job runs.
+PYTHON_IMAGE=docker.io/library/python:3.13-alpine@sha256:1e1f6334529d1fb26a2ef619d7cffb30a7c7d7cc1cc7338ebee283a58d1aeaca
+# The check of the weights' sha256 before the server starts.
+BUSYBOX_IMAGE=docker.io/library/busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+# kind's node: kind v0.33.0's default for Kubernetes v1.37.0, from its release
+# notes (cluster/kind.yaml carries the copy kind reads). kind's own pods run
+# the images it carries, preloaded, and name them by tag: those names follow.
+KIND_NODE_IMAGE=kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+# As kind's pods name them (the inference gateway's run 41578697911 listed them): the control plane,
+# CoreDNS, kube-proxy, kindnet and the storage provisioner.
+KIND_APISERVER_IMAGE=registry.k8s.io/kube-apiserver:v1.37.0
+KIND_CONTROLLER_MANAGER_IMAGE=registry.k8s.io/kube-controller-manager:v1.37.0
+KIND_SCHEDULER_IMAGE=registry.k8s.io/kube-scheduler:v1.37.0
+KIND_PROXY_IMAGE=registry.k8s.io/kube-proxy:v1.37.0
+KIND_ETCD_IMAGE=registry.k8s.io/etcd:3.7.0-0
+KIND_COREDNS_IMAGE=registry.k8s.io/coredns/coredns:v1.14.6
+KIND_KINDNETD_IMAGE=docker.io/kindest/kindnetd:v20260820-69b56db7
+KIND_LOCAL_PATH_IMAGE=docker.io/kindest/local-path-provisioner:v20260820-69b56db7

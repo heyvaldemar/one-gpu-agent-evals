@@ -1,0 +1,19 @@
+# Keeps the pinned GitHub Actions current. Images, CLI tools, weights and the
+# flagship's release are pinned by digest, hash or tag in files Dependabot
+# does not read (images.lock, tools.lock, models.lock, sources.lock); they move
+# with the flagship's release, or by hand with the new hash checked against
+# the publisher's, never before a rebuild is three days old. Dependabot's own
+# three-day cooldown stays at its default.
+#
+# Grouped: one pull request per week is a queue that gets read.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

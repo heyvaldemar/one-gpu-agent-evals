@@ -1,0 +1,118 @@
+# The model server for the CPU row CI measures every day (tests/e2e.sh).
+#
+# The flagship's CPU llama-server, by the digest its release v1.9.0 pins, with
+# the arguments that release serves its evals with (manifests/inference/
+# llama.yaml there): one slot, two threads, an 8K context. scripts/validate.sh
+# fails when the image or an argument differs from the release. On AWS the
+# flagship's CPU rows were measured with the same arguments on an m7i.xlarge,
+# so this row and those differ in the machine, not the server.
+#
+# The weights are the file models.lock pins, downloaded and hashed by
+# scripts/models.sh, seen by the node read-only at /models (cluster/kind.yaml),
+# and hashed once more by the pod before the server starts. @MODEL@ is the
+# model's name in models.lock and @SHA256@ its hash, filled in by tests/e2e.sh.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+# The weights as a volume a restricted pod may mount: a claim on a volume of
+# the node's /models, read-only.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: models
+spec:
+  capacity: {storage: 64Gi}
+  accessModes: [ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: models
+  hostPath: {path: /models, type: Directory}
+  claimRef: {namespace: inference, name: models}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: models
+  namespace: inference
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: models
+  volumeName: models
+  resources:
+    requests: {storage: 64Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-server
+  namespace: inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: model-server}
+  template:
+    metadata:
+      labels: {app: model-server}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        # The server starts only on the file models.lock pins.
+        - name: weights
+          image: docker.io/library/busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+          command: ["sh", "-c", "echo \"$SHA256  /models/$MODEL.gguf\" | sha256sum -c -"]
+          env:
+            - {name: MODEL, value: "@MODEL@"}
+            - {name: SHA256, value: "@SHA256@"}
+          resources:
+            requests: {cpu: 100m, memory: 32Mi}
+            limits: {memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: models, mountPath: /models, readOnly: true}
+      containers:
+        - name: llama-server
+          image: ghcr.io/ggml-org/llama.cpp:server-b11429@sha256:2f8ebc2dde83c4bd7e5c6d61efa57965e0d5a79d29802c246c4593740d9c04c1
+          args: ["-m", "/models/@MODEL@.gguf", "--alias", "@MODEL@", "--jinja", "-c", "8192", "-np", "1", "-t", "2",
+                 "--metrics", "--cache-ram", "512", "--reasoning", "off", "--host", "0.0.0.0", "--port", "8080"]
+          ports: [{name: http, containerPort: 8080}]
+          # No CPU limit, as in the flagship: llama.cpp's threads spin at a
+          # barrier, and a throttled thread stalls the others.
+          resources:
+            requests: {cpu: 250m, memory: 1536Mi}
+            limits: {memory: 6Gi}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 120
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: models, mountPath: /models, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: models
+          persistentVolumeClaim: {claimName: models, readOnly: true}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-server
+  namespace: inference
+spec:
+  selector: {app: model-server}
+  ports: [{name: http, port: 8080, targetPort: http}]

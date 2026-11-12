@@ -1,0 +1,83 @@
+# The load: the flagship's scripts/capacity.py, run by loadgen/calls.py, from a
+# pod beside the server, as the flagship measures its GPU on AWS from a Job in
+# the cluster (its ADR 19: through a port-forward every call was slower by the
+# path). The script, the harness it takes the agent's calls from, the tasks,
+# and the MCP server's tool table and policy come in one ConfigMap, from the
+# flagship's verified release, laid out as in that repository; calls.py comes
+# from this one. Both outputs are printed after a marker line each, for
+# tests/e2e.sh to read from the log. @LEVELS@, @MIN_SECONDS@ and @MODEL@ are
+# filled in there.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: measure
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: capacity
+  namespace: measure
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: capacity
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: capacity
+          image: docker.io/library/python:3.13-alpine@sha256:1e1f6334529d1fb26a2ef619d7cffb30a7c7d7cc1cc7338ebee283a58d1aeaca
+          command:
+            - sh
+            - -c
+            - |
+              for i in $(seq 1 60); do wget -q -O /dev/null -T 2 "$SERVER/health" && break; sleep 2; done
+              python3 -I /work/loadgen/calls.py run "$SERVER" /tmp/capacity.json "$LEVELS" /tmp/calls.jsonl || exit 1
+              echo '--capacity--'
+              cat /tmp/capacity.json
+              echo
+              echo '--calls--'
+              cat /tmp/calls.jsonl
+          env:
+            - {name: SERVER, value: "http://model-server.inference.svc.cluster.local:8080"}
+            - {name: FLAGSHIP, value: /work/flagship}
+            - {name: LEVELS, value: "@LEVELS@"}
+            - {name: MIN_SECONDS, value: "@MIN_SECONDS@"}
+            - {name: MODEL, value: "@MODEL@"}
+            - {name: SLOTS, value: "1"}
+            - {name: THREADS, value: "2"}
+            - {name: ACCELERATOR, value: "CPU, a GitHub-hosted runner"}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          resources:
+            requests: {cpu: 250m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: work, mountPath: /work, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: work
+          configMap:
+            name: capacity
+            items:
+              - {key: calls.py, path: loadgen/calls.py}
+              - {key: capacity.py, path: flagship/scripts/capacity.py}
+              - {key: harness.py, path: flagship/evals/harness.py}
+              - {key: tasks.json, path: flagship/evals/tasks.json}
+              - {key: server.py, path: flagship/manifests/mcp/server.py}
+              - {key: policy.json, path: flagship/manifests/mcp/policy.json}
+        - name: tmp
+          emptyDir: {sizeLimit: 16Mi}
