@@ -19,3 +19,7 @@
 "workstation/run_series.py"	"(os.path.islink(have[n]) or sha256(have[n]) != want[n])"	"os.path.islink(have[n])"	"a flagship file emptied or changed goes unnoticed"
 "workstation/run_series.py"	"    extra = sorted(n for n in have if n not in want)\n"	"    extra = []\n"	"a module the flagship's release does not hold goes unnoticed"
 "workstation/run_series.py"	",\n            \"pcie_link_width\": pre.get(\"gpu\", {}).get(\"pcie.link.width.current\")}"	"}"	"a series goes on after its card's PCIe link width changed"
+"workstation/run_series.py"	"    if shutil.which(\"nvidia-smi\") and values is None:\n"	"    if False:\n"	"a series starts although nvidia-smi did not report the card in full"
+"workstation/run_series.py"	" and len(values) == len(fields.split(\",\")) else None"	" else None"	"a reading nvidia-smi left out shifts the rest onto other names"
+"workstation/run_series.py"	"    if plan[\"server\"].get(\"gpu_flags\") and not shutil.which(\"nvidia-smi\"):\n"	"    if False:\n"	"a GPU series starts with no nvidia-smi to read the card"
+"workstation/run_series.py"	"            if limit is None:\n"	"            if raw is not None and limit is None:\n"	"a unit runs at a power limit that got no answer, without the host's word"

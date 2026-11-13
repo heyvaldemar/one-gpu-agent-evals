@@ -170,10 +170,14 @@ def models_lock():
 
 
 def gpu_query(fields):
+    """The card's readings, one for each of fields and in their order, or None:
+    when nvidia-smi is not here, when it fails, and when it does not answer
+    every field (a reading left out must not shift the rest onto other names)."""
     if not shutil.which("nvidia-smi"):
         return None
     r = run(["nvidia-smi", "--query-gpu=" + fields, "--format=csv,noheader,nounits"])
-    return [x.strip() for x in r.stdout.strip().split(",")] if r.returncode == 0 else None
+    values = [x.strip() for x in r.stdout.strip().split(",")]
+    return values if r.returncode == 0 and len(values) == len(fields.split(",")) else None
 
 
 def preflight(plan, series, skip_isolation):
@@ -220,9 +224,18 @@ def preflight(plan, series, skip_isolation):
             pre["models"] = seen
             return pre, "%s is %s, models.lock pins %s" % (name, got, lock[name]["sha256"])
     pre["models"] = seen
+    # The card's conditions are compared from one invocation to the next, so
+    # one that cannot be read must stop the series, not compare equal to the
+    # same gap the next time: a plan whose server runs on the GPU needs
+    # nvidia-smi, and nvidia-smi must answer every field.
+    if plan["server"].get("gpu_flags") and not shutil.which("nvidia-smi"):
+        return pre, "the plan's server runs on the GPU, and nvidia-smi is not here to read the card"
     fields = ("name", "driver_version", "memory.used", "memory.total", "utilization.gpu", "power.limit",
               "pcie.link.width.current")
-    pre["gpu"] = dict(zip(fields, gpu_query(",".join(fields)) or []))
+    values = gpu_query(",".join(fields))
+    if shutil.which("nvidia-smi") and values is None:
+        return pre, "nvidia-smi did not report all of the card's %s" % ", ".join(fields)
+    pre["gpu"] = dict(zip(fields, values or []))
     pre["kernel"] = os.uname().release
     pre["docker"] = run(["docker", "version", "--format", "{{.Server.Version}}"]).stdout.strip()
     pre["conditions"] = conditions(pre)
@@ -417,9 +430,10 @@ def main(argv):
         if opts.get("--power-limit-w") and str(unit.get("power_limit_w")) != opts["--power-limit-w"]:
             continue
         # The power limit is the host's. Read where the environment can read
-        # it, and held to the unit's; where nvidia-smi answers but not with a
-        # number ([N/A] inside a GPU-P guest), the unit runs only when the host
-        # says which limit it set (--power-limit-w), and says so in the manifest.
+        # it, and held to the unit's; where it does not read as a number ([N/A]
+        # inside a GPU-P guest, or no answer at all), the unit runs only when
+        # the host says which limit it set (--power-limit-w), and the manifest
+        # says the limit was the host's.
         attested = None
         if unit.get("power_limit_w"):
             raw = (gpu_query("power.limit") or [None])[0]
@@ -427,13 +441,13 @@ def main(argv):
             if limit is not None and abs(limit - unit["power_limit_w"]) > 1:
                 inv["units"][uid] = "skipped: the GPU's power limit is %s W, the unit's %s W" % (limit, unit["power_limit_w"])
                 continue
-            if raw is not None and limit is None:
+            if limit is None:
                 if opts.get("--power-limit-w") != str(unit["power_limit_w"]):
                     inv["units"][uid] = ("skipped: the power limit reads %r in the environment, and the host did not say "
                                          "it set %s W (--power-limit-w)" % (raw, unit["power_limit_w"]))
                     continue
                 attested = "%s W, as the host set it; it reads %r in the environment" % (unit["power_limit_w"], raw)
-            elif limit is not None:
+            else:
                 attested = "%s W, read in the environment" % limit
         partial = final + ".partial"
         os.makedirs(partial)

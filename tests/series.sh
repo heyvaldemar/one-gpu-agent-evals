@@ -16,6 +16,9 @@
 #   - a unit whose power limit the environment cannot read runs only on the
 #     host's word, and says so;
 #   - a series whose card's PCIe link width changed does not go on;
+#   - a card nvidia-smi does not report in full, or a GPU plan with no
+#     nvidia-smi at all, stops the series; a power limit with no answer
+#     is as unreadable as [N/A];
 #   - a unit whose server's log cannot be kept does not pass;
 #   - a unit with a file in it that it does not make fails;
 #   - a flagship dir that is not its archive unpacked (a file emptied, a file
@@ -190,11 +193,29 @@ fi
 mkdir -p "$work/bin"
 cat >"$work/bin/nvidia-smi" <<'SH'
 #!/bin/sh
+# One reading for each field asked, in its order, as nvidia-smi gives them.
+# FAKE_WIDTH is the PCIe link's width, FAKE_SHORT leaves the last field out,
+# FAKE_NO_LIMIT fails a query of the power limit alone.
 case "$*" in
   *-lms*) echo "timestamp, power.draw [W]"; exec sleep 3600 ;;
-  *--query-gpu=power.limit\ *|*--query-gpu=power.limit) echo "[N/A]" ;;
-  *) echo "Fake GPU, 0.0, 1, 2, 0, [N/A], ${FAKE_WIDTH:-8}" ;;
 esac
+q=""
+for a in "$@"; do case "$a" in --query-gpu=*) q="${a#--query-gpu=}" ;; esac; done
+[ "$q" = power.limit ] && [ -n "${FAKE_NO_LIMIT:-}" ] && exit 9
+out=""
+IFS=,
+for f in $q; do
+  case "$f" in
+    name) v="Fake GPU" ;;
+    driver_version) v="0.0" ;;
+    power.limit) v="[N/A]" ;;
+    pcie.link.width.current) v="${FAKE_WIDTH:-8}" ;;
+    *) v="1" ;;
+  esac
+  out="${out:+$out, }$v"
+done
+[ -n "${FAKE_SHORT:-}" ] && out="${out%, *}"
+echo "$out"
 SH
 chmod +x "$work/bin/nvidia-smi"
 python3 -I - "$work/plan.json" "$work/plan-limit.json" <<'PY'
@@ -227,6 +248,45 @@ if grep -q 'conditions changed since it began (pcie_link_width)' "$work/run7b.tx
   pass "a series whose card's PCIe link width changed since it began does not go on, and names it"
 else
   fail "a changed PCIe link width: $(tail -2 "$work/run7b.txt" | tr '\n' ' ')"
+fi
+# nvidia-smi here, and not answering every field the preflight asks: the
+# card's conditions could not be compared with the next invocation's, so the
+# series does not start.
+export FAKE_SHORT=1
+limited "$work/out8" --power-limit-w 450 >"$work/run7c.txt" 2>&1
+unset FAKE_SHORT
+if grep -q "REFUSED  nvidia-smi did not report all of the card's" "$work/run7c.txt" && [ -z "$(ls "$work/out8/units")" ]; then
+  pass "nvidia-smi that does not answer every field of the card stops the series before any unit"
+else
+  fail "an unanswered field of the card: $(tail -2 "$work/run7c.txt" | tr '\n' ' ')"
+fi
+# A power limit with no answer at all is as unreadable as [N/A]: the unit runs
+# only on the host's word.
+export FAKE_NO_LIMIT=1
+limited "$work/out9" >"$work/run7d.txt" 2>&1
+unset FAKE_NO_LIMIT
+if grep -q 'SKIP  u450: skipped: the power limit reads None' "$work/run7d.txt" && [ ! -e "$work/out9/units/u450" ]; then
+  pass "a unit whose power limit gets no answer at all is skipped when the host does not say it set it"
+else
+  fail "a power limit with no answer: $(tail -2 "$work/run7d.txt" | tr '\n' ' ')"
+fi
+# A plan whose server runs on the GPU, where there is no nvidia-smi to read
+# the card: nothing to hold the series' card to, so it does not start.
+python3 -I - "$work/plan.json" "$work/plan-gpu.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan["server"]["gpu_flags"] = ["--device", "nvidia.com/gpu=all"]
+json.dump(plan, open(sys.argv[2], "w"))
+PY
+if command -v nvidia-smi >/dev/null 2>&1; then
+  printf 'SKIP  %s\n' "a GPU plan with no nvidia-smi: this machine has one"
+elif SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" MODELS_LOCK="$work/models.lock" \
+     python3 -I "$ROOT/workstation/run_series.py" "$work/plan-gpu.json" "$work/out10" >"$work/run7e.txt" 2>&1; then
+  fail "a series whose server runs on the GPU started with no nvidia-smi to read the card"
+elif grep -q "REFUSED  the plan's server runs on the GPU, and nvidia-smi is not here" "$work/run7e.txt" && [ -z "$(ls "$work/out10/units")" ]; then
+  pass "a series whose server runs on the GPU does not start without nvidia-smi to read the card"
+else
+  fail "a GPU plan with no nvidia-smi: $(tail -2 "$work/run7e.txt" | tr '\n' ' ')"
 fi
 
 # A unit whose server's log cannot be kept does not pass: a docker that
