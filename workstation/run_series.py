@@ -176,13 +176,20 @@ def unit_run(plan, unit, udir):
     if shutil.which("nvidia-smi"):
         sampler = subprocess.Popen(["nvidia-smi", "--query-gpu=" + SAMPLE_FIELDS, "--format=csv,nounits", "-lms", "500"],
                                    stdout=open(os.path.join(udir, "gpu-samples.csv"), "w"), stderr=subprocess.DEVNULL)
+    m = None
     try:
-        return _unit_run(plan, unit, udir)
+        m = _unit_run(plan, unit, udir)
+        return m
     finally:
+        # The server's log is evidence: it is kept whatever the unit's end, and
+        # a unit that passed without it does not pass.
         logs = run(["docker", "logs", SERVER])
-        if logs.returncode == 0:
-            with open(os.path.join(udir, "server.log"), "w") as f:
-                f.write(logs.stdout + logs.stderr)
+        with open(os.path.join(udir, "server.log"), "w") as f:
+            f.write(logs.stdout + logs.stderr)
+        if m is not None:
+            m["server_log"] = "kept" if logs.returncode == 0 else "not kept: docker logs exited %d" % logs.returncode
+            if logs.returncode != 0 and not m.get("failed"):
+                m["failed"] = "the server's log could not be kept"
         docker_rm(SERVER)
         if sampler:
             sampler.terminate()
@@ -296,15 +303,31 @@ def main(argv):
             continue
         if opts.get("--power-limit-w") and str(unit.get("power_limit_w")) != opts["--power-limit-w"]:
             continue
-        limit = number((gpu_query("power.limit") or [None])[0])
-        if unit.get("power_limit_w") and limit is not None and abs(limit - unit["power_limit_w"]) > 1:
-            inv["units"][uid] = "skipped: the GPU's power limit is %s W, the unit's %s W" % (limit, unit["power_limit_w"])
-            continue
+        # The power limit is the host's. Read where the environment can read
+        # it, and held to the unit's; where nvidia-smi answers but not with a
+        # number ([N/A] inside a GPU-P guest), the unit runs only when the host
+        # says which limit it set (--power-limit-w), and says so in the manifest.
+        attested = None
+        if unit.get("power_limit_w"):
+            raw = (gpu_query("power.limit") or [None])[0]
+            limit = number(raw)
+            if limit is not None and abs(limit - unit["power_limit_w"]) > 1:
+                inv["units"][uid] = "skipped: the GPU's power limit is %s W, the unit's %s W" % (limit, unit["power_limit_w"])
+                continue
+            if raw is not None and limit is None:
+                if opts.get("--power-limit-w") != str(unit["power_limit_w"]):
+                    inv["units"][uid] = ("skipped: the power limit reads %r in the environment, and the host did not say "
+                                         "it set %s W (--power-limit-w)" % (raw, unit["power_limit_w"]))
+                    continue
+                attested = "%s W, as the host set it; it reads %r in the environment" % (unit["power_limit_w"], raw)
+            elif limit is not None:
+                attested = "%s W, read in the environment" % limit
         partial = final + ".partial"
         os.makedirs(partial)
         write_json(spath, {k: v for k, v in series.items() if k != "dir"})
         m = unit_run(plan, unit, partial)
         m["preflight_at"] = pre["at"]
+        m["power_limit"] = attested
         write_json(os.path.join(partial, "manifest.json"), m)
         if m.get("failed"):
             failed += 1

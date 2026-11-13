@@ -7,3 +7,5 @@
 "workstation/run_series.py"	"pre[\"isolation\"] = {\"state\": \"not checked\", \"why\": skip_isolation}"	"pre[\"isolation\"] = {}"	"a skipped isolation check is not recorded as skipped"
 "workstation/run_series.py"	"    if not why and first is not None and first != pre[\"conditions\"]:\n"	"    if False:\n"	"a series goes on under conditions other than those it began under"
 "workstation/run_series.py"	"        docker_rm(SERVER)\n        if sampler:"	"        if sampler:"	"a unit that fails leaves its server running"
+"workstation/run_series.py"	"                if opts.get(\"--power-limit-w\") != str(unit[\"power_limit_w\"]):\n"	"                if False:\n"	"a unit runs at a power limit nobody read or set"
+"workstation/run_series.py"	"            if logs.returncode != 0 and not m.get(\"failed\"):\n"	"            if False:\n"	"a unit passes without its server's log"

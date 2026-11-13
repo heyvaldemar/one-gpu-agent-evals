@@ -10,6 +10,9 @@
 #     any unit;
 #   - a unit whose server never becomes ready fails and leaves no server
 #     running;
+#   - a unit whose power limit the environment cannot read runs only on the
+#     host's word, and says so;
+#   - a unit whose server's log cannot be kept does not pass;
 #   - a series whose isolation check fails does not start.
 # The isolation check is skipped (and recorded as skipped) in the cases that
 # do not test it: a test machine is not a closed environment.
@@ -21,8 +24,11 @@ FLAGSHIP="${FLAGSHIP:-$("$ROOT/scripts/sources.sh" path flagship)}"
 ARCHIVE="$(dirname "$FLAGSHIP")/release/kubernetes-air-gapped-ai-agent-v1.9.0.tar.gz"
 SHA="$(awk '$1 == "flagship" {print $4}' "$ROOT/sources.lock")"
 # Docker Desktop shares the home directory, not the system's temporary one.
-work="$ROOT/.cache/series-test"
-/bin/rm -rf "$work" && mkdir -p "$work/models"
+# A directory of its own for each run: a path deleted and made again at once
+# can look missing to Docker Desktop's file sharing for a moment.
+mkdir -p "$ROOT/.cache"
+work="$(mktemp -d "$ROOT/.cache/series-test.XXXXXX")"
+mkdir -p "$work/models"
 trap '/bin/rm -rf "$work"; docker rm -f series-server >/dev/null 2>&1' EXIT
 failed=0
 pass() { printf 'PASS  %s\n' "$*"; }
@@ -142,6 +148,63 @@ elif grep -q 'the server was not ready in 5 s' "$work/run5.txt" && [ -z "$(docke
   pass "a unit whose server never becomes ready fails, is kept as failed, and leaves no server running"
 else
   fail "a dead server: $(tail -2 "$work/run5.txt" | tr '\n' ' '); containers left: $(docker ps -aq --filter name=^series-server$)"
+fi
+
+# A power limit the environment cannot read: a unit that pins one runs only
+# when the host says it set it, and its manifest says how it was known. A fake
+# nvidia-smi answers [N/A] for the limit, as one can inside a GPU-P guest.
+mkdir -p "$work/bin"
+cat >"$work/bin/nvidia-smi" <<'SH'
+#!/bin/sh
+case "$*" in
+  *-lms*) echo "timestamp, power.draw [W]"; exec sleep 3600 ;;
+  *--query-gpu=power.limit\ *|*--query-gpu=power.limit) echo "[N/A]" ;;
+  *) echo "Fake GPU, 0.0, 1, 2, 0, [N/A]" ;;
+esac
+SH
+chmod +x "$work/bin/nvidia-smi"
+python3 -I - "$work/plan.json" "$work/plan-limit.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan["units"] = [dict(plan["units"][0], id="u450", power_limit_w=450)]
+json.dump(plan, open(sys.argv[2], "w"))
+PY
+limited() { PATH="$work/bin:$PATH" SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" \
+  MODELS_LOCK="$work/models.lock" python3 -I "$ROOT/workstation/run_series.py" "$work/plan-limit.json" "$@"; }
+limited "$work/out5" >"$work/run6.txt" 2>&1
+if grep -q 'SKIP  u450: skipped: the power limit reads' "$work/run6.txt" && [ ! -e "$work/out5/units/u450" ]; then
+  pass "a unit whose power limit the environment cannot read is skipped when the host does not say it set it"
+else
+  fail "an unreadable power limit without the host's word: $(tail -2 "$work/run6.txt" | tr '\n' ' ')"
+fi
+limited "$work/out5" --power-limit-w 450 >"$work/run7.txt" 2>&1
+if [ -f "$work/out5/units/u450/done" ] && grep -q '"power_limit": "450 W, as the host set it' "$work/out5/units/u450/manifest.json" \
+   && grep -q '"server_log": "kept"' "$work/out5/units/u450/manifest.json" && [ -f "$work/out5/units/u450/server.log" ]; then
+  pass "with the host's word the unit runs, its manifest says the limit was the host's, and the server's log is kept"
+else
+  fail "an unreadable power limit with the host's word: $(tail -2 "$work/run7.txt" | tr '\n' ' ')"
+fi
+
+# A unit whose server's log cannot be kept does not pass: a docker that
+# refuses `docker logs` and passes everything else to the real one.
+real_docker="$(command -v docker)"
+mkdir -p "$work/bin2"
+# shellcheck disable=SC2016  # the fake's own $1 and $@, written as they are
+printf '#!/bin/sh\n[ "$1" = logs ] && exit 1\nexec "%s" "$@"\n' "$real_docker" >"$work/bin2/docker"
+chmod +x "$work/bin2/docker"
+python3 -I - "$work/plan.json" "$work/plan-nolog.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan["units"] = [dict(plan["units"][1], id="u-nolog")]
+json.dump(plan, open(sys.argv[2], "w"))
+PY
+if PATH="$work/bin2:$PATH" SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" MODELS_LOCK="$work/models.lock" \
+     python3 -I "$ROOT/workstation/run_series.py" "$work/plan-nolog.json" "$work/out6" >"$work/run8.txt" 2>&1; then
+  fail "a unit passed although its server's log could not be kept"
+elif grep -q "FAIL  u-nolog: failed: the server's log could not be kept" "$work/run8.txt"; then
+  pass "a unit whose server's log could not be kept fails"
+else
+  fail "a unit without its server's log: $(tail -2 "$work/run8.txt" | tr '\n' ' ')"
 fi
 
 # An environment that is not closed: the isolation check runs and fails here.
