@@ -87,23 +87,41 @@ jobs:
           ./scripts/validate.sh | tee -a "$GITHUB_STEP_SUMMARY"
           PLANTS=tests/static-plants.tsv python3 -I -u tests/plant-violations.py -- bash scripts/validate.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # The workstation's series runner (ADR 3), on a plan whose server is the
-      # stub in a container: a whole series, a unit cut short and redone, a
-      # model file that is not the pinned one, an isolation check that fails.
-      - name: The series runner, and the breaks it exists for
-        run: |
-          ./tests/series.sh | tee -a "$GITHUB_STEP_SUMMARY"
-          PLANTS=tests/series-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/series.sh | tee -a "$GITHUB_STEP_SUMMARY"
-
       - name: The load generator and the recomputation, and the breaks they exist for
         run: |
           ./tests/recompute.sh | tee -a "$GITHUB_STEP_SUMMARY"
           PLANTS=tests/recompute-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/recompute.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
+  # The workstation's series runner (ADR 3), on a plan whose server is the
+  # stub in a container: a whole series, a unit cut short and redone, a model
+  # file or a flagship tree that is not the pinned one, a card that cannot be
+  # read, an isolation check that fails. A job of its own: each plant runs the
+  # whole test again, about half a minute, and there are two dozen of them.
+  series:
+    name: The series runner, and the breaks it exists for
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Tools, pinned and checked
+        run: echo "$(./scripts/install-tools.sh)" >> "$GITHUB_PATH"
+
+      - name: The flagship's release, verified as a stranger would
+        run: echo "FLAGSHIP=$(./scripts/sources.sh path flagship)" >> "$GITHUB_ENV"
+
+      - name: The series runner, and the breaks it exists for
+        run: |
+          ./tests/series.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          PLANTS=tests/series-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/series.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
   e2e:
     name: The CPU row on kind, recomputed from its records
     runs-on: ubuntu-latest
-    needs: [repo, lint]
+    needs: [repo, lint, series]
     if: github.event_name != 'schedule' || needs.repo.outputs.public == 'true'
     # Up takes about three minutes with the weights' download, the series
     # about two; the plants run the series again on the same cluster, once
