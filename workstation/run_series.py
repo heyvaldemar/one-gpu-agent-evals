@@ -20,7 +20,10 @@ goes into OUT/series.json:
     root, passed: the series does not start in an environment that is open;
   - every file of the carry-in list is the file its sha256 says;
   - the flagship's release archive and every model file are the ones the plan
-    and models.lock pin (MODELS_LOCK names another lock, for the test only).
+    and models.lock pin (MODELS_LOCK names another lock, for the test only);
+  - the release unpacked in the plan's flagship dir, which the client and the
+    recomputation read, is that archive file for file: none missing, short or
+    changed, and none the archive does not hold.
 The power limit is the host's to set. With --power-limit-w, only the units
 for that limit run, and only if nvidia-smi reports it.
 
@@ -44,6 +47,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -124,6 +128,37 @@ def holds(udir, sums_sha256):
         return False
 
 
+def not_unpacked(archive, root):
+    """What in root is not the archive unpacked with its top directory stripped:
+    files missing, files whose bytes differ (an empty file left by a stop before
+    the disk caught up is one), and files or links the archive does not hold (a
+    module beside capacity.py would be imported before the standard library's).
+    Python's own caches (__pycache__/*.pyc) are not the release's and pass."""
+    want = {}
+    with tarfile.open(archive) as t:
+        for m in t:
+            if "/" not in m.name or m.isdir():
+                continue
+            rel = m.name.split("/", 1)[1]
+            if not m.isfile():
+                want[rel] = None  # a link in the archive: no file on disk is taken for it
+                continue
+            h, f = hashlib.sha256(), t.extractfile(m)
+            for block in iter(lambda: f.read(1 << 20), b""):
+                h.update(block)
+            want[rel] = h.hexdigest()
+    have = {}
+    for top, dirs, files in os.walk(root):
+        for n in files + [d for d in dirs if os.path.islink(os.path.join(top, d))]:
+            full = os.path.join(top, n)
+            if not (os.path.basename(top) == "__pycache__" and n.endswith(".pyc") and not os.path.islink(full)):
+                have[os.path.relpath(full, root)] = full
+    missing = sorted(n for n in want if n not in have)
+    changed = sorted(n for n in want if n in have and (os.path.islink(have[n]) or sha256(have[n]) != want[n]))
+    extra = sorted(n for n in have if n not in want)
+    return len(want), missing, changed, extra
+
+
 def models_lock():
     out = {}
     for line in open(os.environ.get("MODELS_LOCK") or os.path.join(ROOT, "models.lock"), encoding="utf-8"):
@@ -164,8 +199,12 @@ def preflight(plan, series, skip_isolation):
     pre["flagship"] = {"tag": plan["flagship"]["tag"], "archive_sha256": got}
     if got != plan["flagship"]["sha256"]:
         return pre, "the flagship's archive is %s, the plan pins %s" % (got, plan["flagship"]["sha256"])
-    if not os.path.isfile(os.path.join(plan["flagship"]["dir"], "scripts", "capacity.py")):
-        return pre, "the flagship's release is not unpacked at %s" % plan["flagship"]["dir"]
+    count, missing, changed, extra = not_unpacked(archive, plan["flagship"]["dir"])
+    pre["flagship"]["unpacked"] = {"files": count, "missing": len(missing), "changed": len(changed), "extra": len(extra)}
+    if missing or changed or extra:
+        return pre, ("the flagship's release at %s is not its archive unpacked: %d missing, %d changed, %d not in it "
+                     "(first: %s)" % (plan["flagship"]["dir"], len(missing), len(changed), len(extra),
+                                      ", ".join((missing + changed + extra)[:3])))
     lock, seen = models_lock(), {}
     for unit in plan["units"]:
         name = unit["model"]

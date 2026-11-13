@@ -17,6 +17,8 @@
 #     host's word, and says so;
 #   - a unit whose server's log cannot be kept does not pass;
 #   - a unit with a file in it that it does not make fails;
+#   - a flagship dir that is not its archive unpacked (a file emptied, a file
+#     added) stops the series before any unit;
 #   - a series whose isolation check fails does not start.
 # The isolation check is skipped (and recorded as skipped) in the cases that
 # do not test it: a test machine is not a closed environment.
@@ -257,6 +259,33 @@ elif grep -q "FAIL  u-nolog: failed: the unit holds 1 file(s) it does not make" 
 else
   fail "a stray file in a unit: $(tail -2 "$work/run9.txt" | tr '\n' ' ')"
 fi
+
+# A flagship dir that is not its archive unpacked, though the archive is the
+# pinned one: capacity.py left empty by a stop before the disk caught up (what
+# the first measured block met), and a module the release does not hold, which
+# capacity.py would import instead of the standard library's. Either stops the
+# series before any unit.
+unpacked() {
+  local what="$1" how="$2" bad="$work/flagship-$3"
+  /bin/cp -R "$FLAGSHIP" "$bad"
+  ( cd "$bad" && eval "$how" )
+  python3 -I - "$work/plan.json" "$work/plan-$3.json" "$bad" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan["flagship"]["dir"] = sys.argv[3]
+json.dump(plan, open(sys.argv[2], "w"))
+PY
+  if SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" MODELS_LOCK="$work/models.lock" \
+       python3 -I "$ROOT/workstation/run_series.py" "$work/plan-$3.json" "$work/out-$3" >"$work/run-$3.txt" 2>&1; then
+    fail "a series ran on a flagship dir with $what"
+  elif grep -q "is not its archive unpacked" "$work/run-$3.txt" && [ -z "$(ls "$work/out-$3/units")" ]; then
+    pass "a flagship dir with $what stops the series before any unit"
+  else
+    fail "a flagship dir with $what: $(tail -2 "$work/run-$3.txt" | tr '\n' ' ')"
+  fi
+}
+unpacked "capacity.py left empty" ': >scripts/capacity.py' empty
+unpacked "a module beside capacity.py that the release does not hold" 'printf "x = 1\n" >scripts/json.py' extra
 
 # An environment that is not closed: the isolation check runs and fails here.
 if series "$work/out3" >"$work/run4.txt" 2>&1; then
