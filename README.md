@@ -16,7 +16,7 @@ Nothing measured on the workstation is published yet. What runs today is the hal
 The three lines of work, in order:
 
 1. **One model on four kinds of hardware.** The flagship's Granite-4.0-1B and Granite-4.1-8B, its CUDA llama-server by digest and its `capacity.py`: calls a minute, p50 and p95 at concurrency 1 to 8, and the card's power draw, against the flagship's AWS runs on an NVIDIA L4 and an A10G and on CPU.
-2. **Planted instructions by model size.** The flagship's tasks and the planted instructions of [agent-security-benchmark](https://github.com/heyvaldemar/agent-security-benchmark), with their own scorers, against one family of open models from 1B to 32B parameters.
+2. **Planted instructions by model size.** The flagship's tasks and the planted instructions of [agent-security-benchmark](https://github.com/heyvaldemar/agent-security-benchmark), with their own scorers, against one family of open models from 1B to 32B parameters; and, as a series of its own, gpt-oss-20b and gpt-oss-120b, mixture-of-experts models under Apache-2.0, the larger one with its experts in system memory.
 3. **Fine-tuning against planted instructions.** A small model trained with QLoRA, measured before and after on planted instructions it never saw in training, and on the ordinary tasks it has to keep solving.
 
 ## How a number gets here
