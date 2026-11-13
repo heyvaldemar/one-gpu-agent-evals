@@ -6,7 +6,9 @@
 # recomputation, the manifest, the unit's SHA256SUMS. Then:
 #   - a unit left half done is found, recorded as interrupted and redone, and
 #     a unit done before is not run again;
-#   - a done unit whose files no longer match its sums is redone;
+#   - a done unit that is no longer what it was (a file emptied, a file
+#     changed with its sums rewritten to match, a file added) is set aside and
+#     redone, and nothing is deleted;
 #   - a model file that is not the one its lock pins stops the series before
 #     any unit;
 #   - a unit whose server never becomes ready fails and leaves no server
@@ -97,23 +99,38 @@ fi
 SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" series "$work/out" >"$work/run2.txt" 2>&1
 inv="$(last "$work/out")"
 if grep -q '"interrupted_units": \["u2"\]' <<<"$inv" && grep -q '"u1": "done before"' <<<"$inv" \
-   && grep -q '"u2": "done"' <<<"$inv" && [ -f "$work/out/units/u2/done" ] && [ ! -e "$work/out/units/u2.partial" ]; then
-  pass "a unit cut short is recorded as interrupted and redone whole; a unit done before is not run again"
+   && grep -q '"u2": "done"' <<<"$inv" && [ -f "$work/out/units/u2/done" ] && [ ! -e "$work/out/units/u2.partial" ] \
+   && compgen -G "$work/out/units/u2.interrupted-*" >/dev/null; then
+  pass "a unit cut short is recorded as interrupted, kept aside and redone whole; a unit done before is not run again"
 else
   fail "resuming a series: $inv"
 fi
 
 # A unit done once whose files no longer match its sums (a power cut that
 # left a file empty): recorded as damaged and measured again.
-: >"$work/out/units/u1/capacity.json"
-SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" series "$work/out" >"$work/run2a.txt" 2>&1
-inv="$(last "$work/out")"
-if grep -q '"damaged_units": \["u1"\]' <<<"$inv" && grep -q '"u1": "done"' <<<"$inv" \
-   && [ -s "$work/out/units/u1/capacity.json" ] && [ -f "$work/out/units/u1/done" ]; then
-  pass "a done unit whose files no longer match its sums is recorded as damaged and measured again"
-else
-  fail "a damaged done unit: $inv"
-fi
+damage() {
+  local what="$1" how="$2"
+  ( cd "$work/out/units/u1" && eval "$how" )
+  SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" series "$work/out" >"$work/run2a.txt" 2>&1
+  inv="$(last "$work/out")"
+  if grep -q '"damaged_units": \["u1"\]' <<<"$inv" && grep -q '"u1": "done"' <<<"$inv" \
+     && [ -s "$work/out/units/u1/capacity.json" ] && [ -f "$work/out/units/u1/done" ] \
+     && [ "$(compgen -G "$work/out/units/u1.damaged-*" | wc -l)" -ge 1 ]; then
+    pass "a done unit with $what is recorded as damaged, kept aside, and measured again"
+  else
+    fail "a done unit with $what: $inv"
+  fi
+  sleep 1  # the next set-aside name has its own second
+}
+damage "a file emptied" ': >capacity.json'
+damage "a file changed and its sums rewritten to match" 'echo "{}" >capacity.json && sha256sum capacity.json >/dev/null 2>&1; python3 -I -c "
+import hashlib, os
+names = sorted(n for n in os.listdir(\".\") if n not in (\"SHA256SUMS\", \"done\"))
+open(\"SHA256SUMS\", \"w\").write(\"\".join(\"%s  %s\\n\" % (hashlib.sha256(open(n, \"rb\").read()).hexdigest(), n) for n in names))"'
+damage "a file added that its sums do not name" 'echo extra >extra.txt'
+
+# An invocation that is refused touches no unit, a unit cut short included.
+mkdir -p "$work/out/units/u9.partial"
 
 # The conditions changed since the series began: another series, not this one.
 python3 -I - "$work/out/series.json" <<'PY'
@@ -124,8 +141,8 @@ json.dump(s, open(sys.argv[1], "w"))
 PY
 if SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" series "$work/out" >"$work/run2b.txt" 2>&1; then
   fail "a series went on although its conditions had changed since it began"
-elif grep -q "conditions changed since it began (driver_version)" "$work/run2b.txt"; then
-  pass "a series whose conditions changed since it began does not go on, and the changed one is named"
+elif grep -q "conditions changed since it began (driver_version)" "$work/run2b.txt" && [ -d "$work/out/units/u9.partial" ]; then
+  pass "a series whose conditions changed since it began does not go on, names the change, and touches no unit"
 else
   fail "a changed condition stopped the series for another reason: $(tail -2 "$work/run2b.txt" | tr '\n' ' ')"
 fi

@@ -1,5 +1,5 @@
 # file	old	new	what tests/series.sh must notice
-"workstation/run_series.py"	"            inv[\"interrupted_units\"].append(name[:-len(\".partial\")])\n"	"            pass\n"	"a unit cut short is not recorded as interrupted"
+"workstation/run_series.py"	"            inv[\"interrupted_units\"].append(uid)\n"	"            pass\n"	"a unit cut short is not recorded as interrupted"
 "workstation/run_series.py"	"        if got != lock[name][\"sha256\"]:\n"	"        if False:\n"	"the runner does not compare a model file with its lock"
 "workstation/run_series.py"	"            return pre, \"the isolation check failed: the series does not start in an open environment\"\n"	"            pass\n"	"the runner starts a series whose isolation check failed"
 "workstation/run_series.py"	"        if os.path.exists(os.path.join(final, \"done\")):\n"	"        if False:\n"	"the runner measures a unit done before again"
@@ -9,4 +9,8 @@
 "workstation/run_series.py"	"        docker_rm(SERVER)\n        if sampler:"	"        if sampler:"	"a unit that fails leaves its server running"
 "workstation/run_series.py"	"                if opts.get(\"--power-limit-w\") != str(unit[\"power_limit_w\"]):\n"	"                if False:\n"	"a unit runs at a power limit nobody read or set"
 "workstation/run_series.py"	"            if logs.returncode != 0 and not m.get(\"failed\"):\n"	"            if False:\n"	"a unit passes without its server's log"
-"workstation/run_series.py"	"        elif os.path.exists(os.path.join(full, \"done\")) and not holds(full):\n"	"        elif False:\n"	"a done unit whose files were damaged is kept as done"
+"workstation/run_series.py"	"        elif name in ids and os.path.exists(os.path.join(full, \"done\")) and not holds(full, done_sums.get(name)):\n"	"        elif False:\n"	"a done unit whose files were damaged is kept as done"
+"workstation/run_series.py"	"        if sums_sha256 is None or sha256(path) != sums_sha256:\n"	"        if False:\n"	"a unit's sums rewritten to match a changed file go unnoticed"
+"workstation/run_series.py"	"        if set(listed) != set(os.listdir(udir)) - {\"SHA256SUMS\", \"done\"}:\n"	"        if False:\n"	"a file added to a done unit goes unnoticed"
+"workstation/run_series.py"	"            os.replace(full, os.path.join(out, \"units\", \"%s.damaged-%s\" % (name, stamp)))\n"	"            shutil.rmtree(full)\n"	"a damaged unit is deleted rather than kept aside"
+"workstation/run_series.py"	"        elif name in ids and os.path.exists(os.path.join(full, \"done\")) and not holds(full, done_sums.get(name)):\n"	"        elif os.path.exists(os.path.join(full, \"done\")) and not holds(full, done_sums.get(name)):\n"	"a unit set aside before is taken for a unit again"
