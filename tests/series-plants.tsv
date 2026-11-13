@@ -14,3 +14,4 @@
 "workstation/run_series.py"	"        if set(listed) != set(os.listdir(udir)) - {\"SHA256SUMS\", \"done\"}:\n"	"        if False:\n"	"a file added to a done unit goes unnoticed"
 "workstation/run_series.py"	"            os.replace(full, os.path.join(out, \"units\", \"%s.damaged-%s\" % (name, stamp)))\n"	"            shutil.rmtree(full)\n"	"a damaged unit is deleted rather than kept aside"
 "workstation/run_series.py"	"        elif name in ids and os.path.exists(os.path.join(full, \"done\")) and not holds(full, done_sums.get(name)):\n"	"        elif os.path.exists(os.path.join(full, \"done\")) and not holds(full, done_sums.get(name)):\n"	"a unit set aside before is taken for a unit again"
+"workstation/run_series.py"	"        if strays:\n"	"        if False:\n"	"a unit passes with a file in it that it does not make"

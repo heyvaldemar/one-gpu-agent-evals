@@ -16,6 +16,7 @@
 #   - a unit whose power limit the environment cannot read runs only on the
 #     host's word, and says so;
 #   - a unit whose server's log cannot be kept does not pass;
+#   - a unit with a file in it that it does not make fails;
 #   - a series whose isolation check fails does not start.
 # The isolation check is skipped (and recorded as skipped) in the cases that
 # do not test it: a test machine is not a closed environment.
@@ -235,6 +236,26 @@ elif grep -q "FAIL  u-nolog: failed: the server's log could not be kept" "$work/
   pass "a unit whose server's log could not be kept fails"
 else
   fail "a unit without its server's log: $(tail -2 "$work/run8.txt" | tr '\n' ' ')"
+fi
+
+# A file the unit does not make, with a newline in its name, put in the
+# unit's directory by its client (here, by a docker that adds it when the
+# client starts): the unit fails, and no forged line reaches its sums.
+mkdir -p "$work/bin3"
+cat >"$work/bin3/docker" <<SH
+#!/bin/sh
+for a in "\$@"; do case "\$a" in *:/out) d="\${a%:/out}"; printf x >"\$d/forged
+line" ;; esac; done
+exec "$real_docker" "\$@"
+SH
+chmod +x "$work/bin3/docker"
+if PATH="$work/bin3:$PATH" SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" MODELS_LOCK="$work/models.lock" \
+     python3 -I "$ROOT/workstation/run_series.py" "$work/plan-nolog.json" "$work/out7" >"$work/run9.txt" 2>&1; then
+  fail "a unit passed with a file in it that it does not make"
+elif grep -q "FAIL  u-nolog: failed: the unit holds 1 file(s) it does not make" "$work/run9.txt" && [ ! -e "$work/out7/units/u-nolog/done" ]; then
+  pass "a unit with a file in it that it does not make (a newline in its name) fails, and is not marked done"
+else
+  fail "a stray file in a unit: $(tail -2 "$work/run9.txt" | tr '\n' ' ')"
 fi
 
 # An environment that is not closed: the isolation check runs and fails here.

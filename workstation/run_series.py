@@ -40,6 +40,7 @@ published only after review (ADR 3).
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -48,6 +49,12 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NET = "series-net"
 SERVER = "series-server"
+# The files a unit makes, and no others. The client's container can write in
+# the unit's directory, so a name it chose (a newline in it would forge a line
+# of SHA256SUMS) never reaches the sums: an unexpected file fails the unit.
+UNIT_FILES = {"manifest.json", "capacity.json", "calls.jsonl", "client.log", "server.log", "recompute.txt",
+              "gpu-samples.csv"}
+SAFE_NAME = re.compile(r"[A-Za-z0-9._-]{1,128}")
 SAMPLE_FIELDS = ("timestamp,power.draw,power.limit,clocks.sm,clocks.mem,temperature.gpu,utilization.gpu,"
                  "memory.used,memory.total,pcie.link.gen.current,pcie.link.width.current,"
                  "pcie.link.gen.max,pcie.link.width.max")
@@ -107,7 +114,7 @@ def holds(udir, sums_sha256):
         listed = {}
         for line in open(path, encoding="utf-8"):
             h, n = line.rstrip("\n").split("  ", 1)
-            if os.path.isabs(n) or os.sep in n or n in (".", ".."):
+            if n not in UNIT_FILES or not SAFE_NAME.fullmatch(n) or not re.fullmatch(r"[0-9a-f]{64}", h):
                 return False
             listed[n] = h
         if set(listed) != set(os.listdir(udir)) - {"SHA256SUMS", "done"}:
@@ -275,7 +282,10 @@ def _unit_run(plan, unit, udir):
     if "ready" not in r.stdout:
         m["failed"] = "the server was not ready in %d s" % wait
         return m
+    # The client runs as the runner's own user, not the image's root: what it
+    # writes in the unit is the runner's, and nothing it writes is root's.
     client = ["docker", "run", "--rm", "--network", NET, "--cpus", "1", "--memory", "256m", "--read-only",
+              "--user", "%d:%d" % (os.getuid(), os.getgid()),
               "--tmpfs", "/tmp", "-v", "%s:/work/flagship:ro" % plan["flagship"]["dir"],
               "-v", "%s:/work/loadgen:ro" % os.path.join(ROOT, "loadgen"), "-v", "%s:/out" % udir,
               "-e", "FLAGSHIP=/work/flagship", "-e", "MODEL=%s" % unit["model"],
@@ -393,6 +403,13 @@ def main(argv):
             os.replace(partial, final + ".failed-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
             continue
         names = sorted(n for n in os.listdir(partial) if n != "SHA256SUMS")
+        strays = [n for n in names if n not in UNIT_FILES or not SAFE_NAME.fullmatch(n)
+                  or os.path.islink(os.path.join(partial, n)) or not os.path.isfile(os.path.join(partial, n))]
+        if strays:
+            failed += 1
+            inv["units"][uid] = "failed: the unit holds %d file(s) it does not make" % len(strays)
+            os.replace(partial, final + ".failed-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
+            continue
         sums = "".join("%s  %s\n" % (sha256(os.path.join(partial, n)), n) for n in names)
         with open(os.path.join(partial, "SHA256SUMS"), "w") as f:
             f.write(sums)
