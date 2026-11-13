@@ -152,19 +152,46 @@ def conditions(pre):
             "driver_version": pre.get("gpu", {}).get("driver_version"), "gpu": pre.get("gpu", {}).get("name")}
 
 
+def number(text):
+    """A reading of nvidia-smi as a number, or None when it says [N/A] or the
+    like, as it can for the power limit inside a GPU-P guest; the host then
+    records the limit it set."""
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
 def docker_rm(name):
     run(["docker", "rm", "-f", name])
 
 
 def unit_run(plan, unit, udir):
-    m = {"unit": unit, "started": utc(), "images": plan["images"]}
-    model_path = os.path.join(plan["models_dir"], unit["model"] + ".gguf")
+    """One unit, with the GPU sampled from before the server starts to after it
+    is gone, and the server's log kept and its container removed however the
+    unit ends."""
     run(["docker", "network", "create", "--internal", NET])
     docker_rm(SERVER)
     sampler = None
     if shutil.which("nvidia-smi"):
         sampler = subprocess.Popen(["nvidia-smi", "--query-gpu=" + SAMPLE_FIELDS, "--format=csv,nounits", "-lms", "500"],
                                    stdout=open(os.path.join(udir, "gpu-samples.csv"), "w"), stderr=subprocess.DEVNULL)
+    try:
+        return _unit_run(plan, unit, udir)
+    finally:
+        logs = run(["docker", "logs", SERVER])
+        if logs.returncode == 0:
+            with open(os.path.join(udir, "server.log"), "w") as f:
+                f.write(logs.stdout + logs.stderr)
+        docker_rm(SERVER)
+        if sampler:
+            sampler.terminate()
+            sampler.wait()
+
+
+def _unit_run(plan, unit, udir):
+    m = {"unit": unit, "started": utc(), "images": plan["images"]}
+    model_path = os.path.join(plan["models_dir"], unit["model"] + ".gguf")
     server = plan["server"]
     cpus = unit.get("server_cpus", "all")
     cmd = ["docker", "run", "-d", "--name", SERVER, "--network", NET, "--read-only", "--tmpfs", "/tmp",
@@ -185,16 +212,17 @@ def unit_run(plan, unit, udir):
     m["server_cpus"] = cpus
     # Time to ready: the server's own /health, asked from a container on the
     # same network every half second.
+    wait = int(server.get("ready_timeout_s", 900))
     probe = ("import time, urllib.request\n"
              "t = time.time()\n"
-             "while time.time() - t < 900:\n"
+             "while time.time() - t < %d:\n"
              "    try:\n"
              "        urllib.request.urlopen('http://%s:8080/health', timeout=2); print('ready'); break\n"
-             "    except Exception: time.sleep(0.5)\n") % SERVER
+             "    except Exception: time.sleep(0.5)\n") % (wait, SERVER)
     r = run(["docker", "run", "--rm", "--network", NET, plan["images"]["client"], "python3", "-I", "-c", probe])
     m["time_to_ready_s"] = round(time.time() - t0, 1)
     if "ready" not in r.stdout:
-        m["failed"] = "the server was not ready in 15 minutes"
+        m["failed"] = "the server was not ready in %d s" % wait
         return m
     client = ["docker", "run", "--rm", "--network", NET, "--cpus", "1", "--memory", "256m", "--read-only",
               "--tmpfs", "/tmp", "-v", "%s:/work/flagship:ro" % plan["flagship"]["dir"],
@@ -208,13 +236,6 @@ def unit_run(plan, unit, udir):
     m["client_exit"] = r.returncode
     with open(os.path.join(udir, "client.log"), "w") as f:
         f.write(r.stdout + r.stderr)
-    with open(os.path.join(udir, "server.log"), "w") as f:
-        s = run(["docker", "logs", SERVER])
-        f.write(s.stdout + s.stderr)
-    docker_rm(SERVER)
-    if sampler:
-        sampler.terminate()
-        sampler.wait()
     if r.returncode != 0:
         m["failed"] = "the load generator did not finish"
         return m
@@ -275,8 +296,8 @@ def main(argv):
             continue
         if opts.get("--power-limit-w") and str(unit.get("power_limit_w")) != opts["--power-limit-w"]:
             continue
-        limit = (gpu_query("power.limit") or [None])[0]
-        if unit.get("power_limit_w") and limit is not None and abs(float(limit) - unit["power_limit_w"]) > 1:
+        limit = number((gpu_query("power.limit") or [None])[0])
+        if unit.get("power_limit_w") and limit is not None and abs(limit - unit["power_limit_w"]) > 1:
             inv["units"][uid] = "skipped: the GPU's power limit is %s W, the unit's %s W" % (limit, unit["power_limit_w"])
             continue
         partial = final + ".partial"

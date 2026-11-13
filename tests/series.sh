@@ -8,6 +8,8 @@
 #     a unit done before is not run again;
 #   - a model file that is not the one its lock pins stops the series before
 #     any unit;
+#   - a unit whose server never becomes ready fails and leaves no server
+#     running;
 #   - a series whose isolation check fails does not start.
 # The isolation check is skipped (and recorded as skipped) in the cases that
 # do not test it: a test machine is not a closed environment.
@@ -121,6 +123,26 @@ fi
 head -c -1 "$work/models/stub-model.gguf" >"$work/models/stub-model.tmp" 2>/dev/null \
   || python3 -I -c 'import sys; d = open(sys.argv[1], "rb").read(); open(sys.argv[2], "wb").write(d[:-1])' "$work/models/stub-model.gguf" "$work/models/stub-model.tmp"
 mv -f "$work/models/stub-model.tmp" "$work/models/stub-model.gguf"
+
+# A server that never becomes ready: the unit fails, and nothing of it is left
+# running (its container, the GPU sampler).
+python3 -I - "$work/plan.json" "$work/plan-dead.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+plan["server"]["args"] = ["python3", "-I", "-c", "import time; time.sleep(3600)"]
+plan["server"]["ready_timeout_s"] = 5
+plan["units"] = plan["units"][:1]
+json.dump(plan, open(sys.argv[2], "w"))
+PY
+if SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" MODELS_LOCK="$work/models.lock" \
+     python3 -I "$ROOT/workstation/run_series.py" "$work/plan-dead.json" "$work/out4" >"$work/run5.txt" 2>&1; then
+  fail "a unit whose server never became ready passed"
+elif grep -q 'the server was not ready in 5 s' "$work/run5.txt" && [ -z "$(docker ps -aq --filter name=^series-server$)" ] \
+     && compgen -G "$work/out4/units/u1.failed-*" >/dev/null; then
+  pass "a unit whose server never becomes ready fails, is kept as failed, and leaves no server running"
+else
+  fail "a dead server: $(tail -2 "$work/run5.txt" | tr '\n' ' '); containers left: $(docker ps -aq --filter name=^series-server$)"
+fi
 
 # An environment that is not closed: the isolation check runs and fails here.
 if series "$work/out3" >"$work/run4.txt" 2>&1; then
