@@ -12,6 +12,9 @@
 #   deploy  every image a manifest under deploy/ names is pinned by digest and
 #           is one images.lock names
 #   kind    cluster/kind.yaml starts the node image images.lock pins
+#   private no file names a machine of the workstation's or its domain, or
+#           holds an address in a private range (scripts/private_check.py,
+#           which also runs over a series before it is committed here)
 #   plan    every workstation plan serves with the release's GPU server's
 #           arguments (manifests/inference/llama-gpu.yaml), but for the
 #           model's path and name, and runs the images images.lock pins
@@ -167,7 +170,11 @@ PY
   [ "$n" -gt 0 ] || fail "no plan under workstation/plans"
 }
 
-all=(pins models args deploy kind plan)
+check_private() {
+  python3 -I "$ROOT/scripts/private_check.py" "$ROOT" || failed=1
+}
+
+all=(pins models args deploy kind plan private)
 for check in "${@:-${all[@]}}"; do
   if [[ " ${all[*]} " != *" $check "* ]]; then
     echo "no check named $check (checks: ${all[*]})" >&2
@@ -180,6 +187,7 @@ for check in "${@:-${all[@]}}"; do
     deploy) check_deploy ;;
     kind) check_kind ;;
     plan) check_plan ;;
+    private) check_private ;;
   esac
 done
 exit "$failed"

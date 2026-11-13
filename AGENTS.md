@@ -30,7 +30,7 @@ A new or changed check ships with the break it exists for, as a row in one of th
 
 ## The workstation
 
-- Nothing published here names or locates the workstation or its network: no host name, no domain, no address, no network, no tunnel, no VPN, no location or country, no account, and no build number of its operating system. The machine is "a workstation with an RTX 4090", or "a Windows 11 workstation with an RTX 4090" where the operating system matters (ADR 3). A driver version is recorded in a series' manifest for what it changes, never beside anything that would identify the machine.
+- `scripts/validate.sh private` holds this, over the repository on every change and over a series before it is committed. Nothing published here names or locates the workstation or its network: no host name, no domain, no address, no network, no tunnel, no VPN, no location or country, no account, and no build number of its operating system. The machine is "a workstation with an RTX 4090", or "a Windows 11 workstation with an RTX 4090" where the operating system matters (ADR 3). A driver version is recorded in a series' manifest for what it changes, never beside anything that would identify the machine.
 - A series runs only in the closed environment of ADR 3, after its isolation check has passed, with the GPU lent by the host. No runner runs there, and nothing from a pull request ever does.
 - Only open weights under permissive OSI licences, by their lines in `models.lock`. Nothing else on the machine is read.
 
