@@ -6,6 +6,7 @@
 # recomputation, the manifest, the unit's SHA256SUMS. Then:
 #   - a unit left half done is found, recorded as interrupted and redone, and
 #     a unit done before is not run again;
+#   - a done unit whose files no longer match its sums is redone;
 #   - a model file that is not the one its lock pins stops the series before
 #     any unit;
 #   - a unit whose server never becomes ready fails and leaves no server
@@ -100,6 +101,18 @@ if grep -q '"interrupted_units": \["u2"\]' <<<"$inv" && grep -q '"u1": "done bef
   pass "a unit cut short is recorded as interrupted and redone whole; a unit done before is not run again"
 else
   fail "resuming a series: $inv"
+fi
+
+# A unit done once whose files no longer match its sums (a power cut that
+# left a file empty): recorded as damaged and measured again.
+: >"$work/out/units/u1/capacity.json"
+SERIES_SKIP_ISOLATION_CHECK="a test machine is not the environment" series "$work/out" >"$work/run2a.txt" 2>&1
+inv="$(last "$work/out")"
+if grep -q '"damaged_units": \["u1"\]' <<<"$inv" && grep -q '"u1": "done"' <<<"$inv" \
+   && [ -s "$work/out/units/u1/capacity.json" ] && [ -f "$work/out/units/u1/done" ]; then
+  pass "a done unit whose files no longer match its sums is recorded as damaged and measured again"
+else
+  fail "a damaged done unit: $inv"
 fi
 
 # The conditions changed since the series began: another series, not this one.

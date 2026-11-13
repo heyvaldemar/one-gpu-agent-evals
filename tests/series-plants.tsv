@@ -9,3 +9,4 @@
 "workstation/run_series.py"	"        docker_rm(SERVER)\n        if sampler:"	"        if sampler:"	"a unit that fails leaves its server running"
 "workstation/run_series.py"	"                if opts.get(\"--power-limit-w\") != str(unit[\"power_limit_w\"]):\n"	"                if False:\n"	"a unit runs at a power limit nobody read or set"
 "workstation/run_series.py"	"            if logs.returncode != 0 and not m.get(\"failed\"):\n"	"            if False:\n"	"a unit passes without its server's log"
+"workstation/run_series.py"	"        elif os.path.exists(os.path.join(full, \"done\")) and not holds(full):\n"	"        elif False:\n"	"a done unit whose files were damaged is kept as done"

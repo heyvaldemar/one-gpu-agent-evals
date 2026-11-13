@@ -7,7 +7,9 @@ power limit, the levels of concurrency. A unit is the piece that survives a
 power cut: it is either done (OUT/units/<id>/ with its SHA256SUMS and a
 `done` marker) or it is measured again whole, since a rate is read from one
 unbroken window. A unit left half done by an interruption is found as
-OUT/units/<id>.partial, recorded in OUT/series.json, and redone.
+OUT/units/<id>.partial, recorded in OUT/series.json, and redone. Every file
+of a unit is on disk before the unit is marked done, and a done unit whose
+files no longer match its SHA256SUMS is recorded as damaged and redone.
 
 Before any unit, the invocation must pass its preflight, and each part of it
 goes into OUT/series.json:
@@ -71,6 +73,36 @@ def write_json(path, data):
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)
+
+
+def fsync_tree(path):
+    """Every file in a unit's directory, and the directory, on disk. A power cut
+    after a unit is marked done must not leave it done and empty."""
+    for name in os.listdir(path):
+        full = os.path.join(path, name)
+        if os.path.isfile(full):
+            fd = os.open(full, os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def holds(udir):
+    """True when every file a done unit's SHA256SUMS names is the file it says."""
+    try:
+        for line in open(os.path.join(udir, "SHA256SUMS"), encoding="utf-8"):
+            h, n = line.split()
+            if sha256(os.path.join(udir, n)) != h:
+                return False
+    except (OSError, ValueError):
+        return False
+    return True
 
 
 def models_lock():
@@ -277,9 +309,14 @@ def main(argv):
            "interrupted_units": [], "units": {}}
     series["invocations"].append(inv)
     for name in sorted(os.listdir(os.path.join(out, "units"))):
+        full = os.path.join(out, "units", name)
         if name.endswith(".partial"):
             inv["interrupted_units"].append(name[:-len(".partial")])
-            shutil.rmtree(os.path.join(out, "units", name))
+            shutil.rmtree(full)
+        elif os.path.exists(os.path.join(full, "done")) and not holds(full):
+            # Done once, and no longer what its sums say: measured again.
+            inv.setdefault("damaged_units", []).append(name)
+            shutil.rmtree(full)
     pre, why = preflight(plan, series, os.environ.get("SERIES_SKIP_ISOLATION_CHECK"))
     inv["preflight"] = pre
     first = next((i["preflight"]["conditions"] for i in series["invocations"][:-1]
@@ -340,8 +377,12 @@ def main(argv):
             f.write(sums)
             f.flush()
             os.fsync(f.fileno())
+        fsync_tree(partial)
         os.replace(partial, final)
-        open(os.path.join(final, "done"), "w").close()
+        with open(os.path.join(final, "done"), "w") as f:
+            os.fsync(f.fileno())
+        fsync_tree(final)
+        fsync_tree(os.path.dirname(final))
         inv["units"][uid] = "done"
         write_json(spath, {k: v for k, v in series.items() if k != "dir"})
     inv["ended"] = utc()
