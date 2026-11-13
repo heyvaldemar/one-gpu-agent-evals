@@ -15,6 +15,7 @@
 #     running;
 #   - a unit whose power limit the environment cannot read runs only on the
 #     host's word, and says so;
+#   - a series whose card's PCIe link width changed does not go on;
 #   - a unit whose server's log cannot be kept does not pass;
 #   - a unit with a file in it that it does not make fails;
 #   - a flagship dir that is not its archive unpacked (a file emptied, a file
@@ -192,7 +193,7 @@ cat >"$work/bin/nvidia-smi" <<'SH'
 case "$*" in
   *-lms*) echo "timestamp, power.draw [W]"; exec sleep 3600 ;;
   *--query-gpu=power.limit\ *|*--query-gpu=power.limit) echo "[N/A]" ;;
-  *) echo "Fake GPU, 0.0, 1, 2, 0, [N/A]" ;;
+  *) echo "Fake GPU, 0.0, 1, 2, 0, [N/A], ${FAKE_WIDTH:-8}" ;;
 esac
 SH
 chmod +x "$work/bin/nvidia-smi"
@@ -216,6 +217,16 @@ if [ -f "$work/out5/units/u450/done" ] && grep -q '"power_limit": "450 W, as the
   pass "with the host's word the unit runs, its manifest says the limit was the host's, and the server's log is kept"
 else
   fail "an unreadable power limit with the host's word: $(tail -2 "$work/run7.txt" | tr '\n' ' ')"
+fi
+# The card's PCIe link wider than when the series began (a drive moved off
+# the lanes the slot shares with it): another series, not this one.
+export FAKE_WIDTH=16
+limited "$work/out5" --power-limit-w 450 >"$work/run7b.txt" 2>&1
+unset FAKE_WIDTH
+if grep -q 'conditions changed since it began (pcie_link_width)' "$work/run7b.txt"; then
+  pass "a series whose card's PCIe link width changed since it began does not go on, and names it"
+else
+  fail "a changed PCIe link width: $(tail -2 "$work/run7b.txt" | tr '\n' ' ')"
 fi
 
 # A unit whose server's log cannot be kept does not pass: a docker that

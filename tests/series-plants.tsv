@@ -18,3 +18,4 @@
 "workstation/run_series.py"	"    if missing or changed or extra:\n"	"    if False:\n"	"a flagship dir that is not its archive unpacked goes unnoticed"
 "workstation/run_series.py"	"(os.path.islink(have[n]) or sha256(have[n]) != want[n])"	"os.path.islink(have[n])"	"a flagship file emptied or changed goes unnoticed"
 "workstation/run_series.py"	"    extra = sorted(n for n in have if n not in want)\n"	"    extra = []\n"	"a module the flagship's release does not hold goes unnoticed"
+"workstation/run_series.py"	",\n            \"pcie_link_width\": pre.get(\"gpu\", {}).get(\"pcie.link.width.current\")}"	"}"	"a series goes on after its card's PCIe link width changed"

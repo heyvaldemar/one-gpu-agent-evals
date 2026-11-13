@@ -28,7 +28,8 @@ The power limit is the host's to set. With --power-limit-w, only the units
 for that limit run, and only if nvidia-smi reports it.
 
 A series is measured under one set of conditions the environment can see
-(its memory, the driver, the kernel, the card): an invocation whose
+(its memory, the driver, the kernel, the card and the width of its PCIe
+link): an invocation whose
 conditions differ from the series' first is refused, and the units it would
 run belong in a new OUT.
 
@@ -219,8 +220,9 @@ def preflight(plan, series, skip_isolation):
             pre["models"] = seen
             return pre, "%s is %s, models.lock pins %s" % (name, got, lock[name]["sha256"])
     pre["models"] = seen
-    pre["gpu"] = dict(zip(("name", "driver_version", "memory.used", "memory.total", "utilization.gpu", "power.limit"),
-                          gpu_query("name,driver_version,memory.used,memory.total,utilization.gpu,power.limit") or []))
+    fields = ("name", "driver_version", "memory.used", "memory.total", "utilization.gpu", "power.limit",
+              "pcie.link.width.current")
+    pre["gpu"] = dict(zip(fields, gpu_query(",".join(fields)) or []))
     pre["kernel"] = os.uname().release
     pre["docker"] = run(["docker", "version", "--format", "{{.Server.Version}}"]).stdout.strip()
     pre["conditions"] = conditions(pre)
@@ -229,8 +231,11 @@ def preflight(plan, series, skip_isolation):
 
 def conditions(pre):
     """What a series' numbers depend on and the environment can see: its own
-    memory, the driver, the kernel, the card. A series is measured under one
-    set of them; the host records its own (its memory and the memory's speed)."""
+    memory, the driver, the kernel, the card, and how many PCIe lanes the card
+    has (a board that shares the slot's lanes with an M.2 drive gives it 8 of
+    16; its generation is not one, since it drops while the card is idle). A
+    series is measured under one set of them; the host records its own (its
+    memory and the memory's speed)."""
     mem = None
     try:
         for line in open("/proc/meminfo"):
@@ -239,7 +244,8 @@ def conditions(pre):
     except OSError:
         pass
     return {"guest_memory_kib": mem, "kernel": pre.get("kernel"),
-            "driver_version": pre.get("gpu", {}).get("driver_version"), "gpu": pre.get("gpu", {}).get("name")}
+            "driver_version": pre.get("gpu", {}).get("driver_version"), "gpu": pre.get("gpu", {}).get("name"),
+            "pcie_link_width": pre.get("gpu", {}).get("pcie.link.width.current")}
 
 
 def number(text):
