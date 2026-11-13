@@ -13,6 +13,8 @@ It refuses:
     range of RFC 6598, IPv4 link-local, and IPv6 link-local and unique local
     addresses. The ranges are written below as numbers, so that this file
     passes its own check.
+  - a time of day written with a local offset rather than in UTC: an offset
+    says where the machine is (every time here is UTC, ending in Z).
 Documentation addresses (192.0.2/24, 198.51.100/24, 203.0.113/24, RFC 5737)
 and loopback are not a place, and pass. A finding prints the file, the line
 and what kind of thing it is, never the matched text.
@@ -31,6 +33,7 @@ PRIVATE_V4 = [ipaddress.IPv4Network((base, bits)) for base, bits in
               ((10 << 24, 8), ((172 << 24) | (16 << 16), 12), ((192 << 24) | (168 << 16), 16),
                ((100 << 24) | (64 << 16), 10), ((169 << 24) | (254 << 16), 16))]
 PRIVATE_V6 = [ipaddress.IPv6Network((0xFE80 << 112, 10)), ipaddress.IPv6Network((0xFC00 << 112, 7))]
+LOCAL_TIME = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s?([+-])(\d{2}):?(\d{2})(?!\d)")
 SKIP_DIRS = {".git", ".cache", "__pycache__"}
 
 
@@ -52,6 +55,9 @@ def findings(path):
                 continue
             if any(ip in net for net in PRIVATE_V4):
                 out.append((n, "an address in a private range"))
+        for m in LOCAL_TIME.finditer(line):
+            if (m.group(2), m.group(3)) != ("00", "00"):
+                out.append((n, "a time with a local offset, not UTC"))
         for m in IPV6.finditer(line):
             try:
                 ip = ipaddress.ip_address(m.group(1))
@@ -75,7 +81,7 @@ def main(argv):
                     bad += 1
                     print("FAIL  private: %s:%d holds %s" % (os.path.relpath(path, top), n, what))
     if not bad:
-        print("PASS  private: no machine's name, domain or private address in %s" % ", ".join(argv))
+        print("PASS  private: no machine's name, domain, private address or local time offset in %s" % ", ".join(argv))
     return 1 if bad else 0
 
 
