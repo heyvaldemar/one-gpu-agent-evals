@@ -17,3 +17,26 @@
 # From the flagship's release v1.9.0:
 granite-4.0-1b https://huggingface.co/ibm-granite/granite-4.0-1b-GGUF/resolve/b27c2fe3f211b7f44e80fa620177aea371099aaa/granite-4.0-1b-Q4_K_M.gguf 22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f1 Apache-2.0 sha256:8fd3132c43d508dbf2ad3b068216d56fc8206c0d6aac130270f60d600d70bb4c
 granite-4.1-8b https://huggingface.co/ibm-granite/granite-4.1-8b-GGUF/resolve/865b82c2e7970d82e3731278c88c57ae7138359c/granite-4.1-8b-Q4_K_M.gguf ed902ac9eb6adce5a90c6a08c8ea201b50e23fdc5976d1cd0362006afac5309e Apache-2.0 sha256:dfaeada7ded8590520550df8d23172a409a2c704f124943cb47dc18aef41b927
+
+# From the flagship's release v1.9.0, for line 2's Granite curve:
+granite-4.1-3b https://huggingface.co/ibm-granite/granite-4.1-3b-GGUF/resolve/ab4701481089b58a082ef63cc1cee738887293ff/granite-4.1-3b-Q4_K_M.gguf 662b0626cd58f443baea23559b469df6576a81d349649c59413b36a9fb32eb29 Apache-2.0 sha256:09267bf82180bf92821ed771223f88bff86011ea8b189cb06c5444f1a4ce2bca
+
+# This repository's own, for line 2 (model size against planted instructions)
+# and its gpt-oss series. One family, Qwen3, from 0.6B to 32B; the publisher's
+# own files where it has them (it ships only Q8_0 at 0.6B and 1.7B), and
+# IQ4_XS from one quantizer for the two points that need it, since 32B in
+# Q4_K_M does not fit beside its KV cache in 24 GB. Two bridges keep a change
+# of file from reading as a change of size: 4B in Q8_0 and Q4_K_M, 14B in
+# Q4_K_M and IQ4_XS. granite-4.0-h-small is a 32B mixture of experts and is
+# reported as one. gpt-oss is MXFP4 as its publisher ships it.
+qwen3-0.6b-q8 https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf 9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031 Apache-2.0 unpinned
+qwen3-1.7b-q8 https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/90862c4b9d2787eaed51d12237eafdfe7c5f6077/Qwen3-1.7B-Q8_0.gguf 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a Apache-2.0 unpinned
+qwen3-4b https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/bc640142c66e1fdd12af0bd68f40445458f3869b/Qwen3-4B-Q4_K_M.gguf 7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5 Apache-2.0 unpinned
+qwen3-4b-q8 https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/bc640142c66e1fdd12af0bd68f40445458f3869b/Qwen3-4B-Q8_0.gguf 8c2f07f26af9747e41988551106f149b03eb9b5cb6df636027b6bf6278473300 Apache-2.0 unpinned
+qwen3-8b https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/7c41481f57cb95916b40956ab2f0b139b296d974/Qwen3-8B-Q4_K_M.gguf d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785 Apache-2.0 unpinned
+qwen3-14b https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/530227a7d994db8eca5ab5ced2fb692b614357fd/Qwen3-14B-Q4_K_M.gguf 500a8806e85ee9c83f3ae08420295592451379b4f8cf2d0f41c15dffeb6b81f0 Apache-2.0 unpinned
+qwen3-14b-iq4xs https://huggingface.co/unsloth/Qwen3-14B-GGUF/resolve/a04a82c4739b3ef5fa6da7d10261db2c67dd1985/Qwen3-14B-IQ4_XS.gguf e24bdda1295a1bb7898b7af9300b86eba0ffba66d8f3dadbc90d00e98ecd5369 Apache-2.0 unpinned
+qwen3-32b-iq4xs https://huggingface.co/unsloth/Qwen3-32B-GGUF/resolve/931c84066f88693a02ab8de820cfcd066d913241/Qwen3-32B-IQ4_XS.gguf 3c4e43713e75b1c445f551fee3876be5529fe124a1adb49b2d192e74ac0e7a66 Apache-2.0 unpinned
+granite-4.0-h-small https://huggingface.co/ibm-granite/granite-4.0-h-small-GGUF/resolve/6522095069a86fc3186b8632850e4373dd850cac/granite-4.0-h-small-Q4_K_M.gguf 23c6019f2e6fa56eb8872ecf8d9d1e4b2ebf3c087fb5275257ea07602d2a38b6 Apache-2.0 unpinned
+gpt-oss-20b https://huggingface.co/ggml-org/gpt-oss-20b-GGUF/resolve/41e8a94d15d62070b36cf4553a0250717ecf46b8/gpt-oss-20b-MXFP4.gguf 27cd6c432c7672cb812a92f611cf3ba7bbc35928262bb1e1253ff4ee6ae35901 Apache-2.0 unpinned
+gpt-oss-120b https://huggingface.co/ggml-org/gpt-oss-120b-GGUF/resolve/f59990363fbbb67f01bce03e5e7bf0929e3e320b/gpt-oss-120b-MXFP4.gguf 582bd40f6886200101f4c4ed9f25f3fe80cc14c86e9e2b37746cd8904a0c622d Apache-2.0 unpinned
