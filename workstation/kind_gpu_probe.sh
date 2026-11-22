@@ -18,6 +18,8 @@
 #               the binaries its hooks call mounted in, labelled as a GPU node
 #   node        what the node's containerd says about CDI
 #   load        the CUDA and device plugin images loaded into the node
+#   digest      whether the node finds the CUDA image by its digest, as the
+#               flagship's and the gateway's manifests name it
 #   plugin-*    NVIDIA's device plugin (the gateway's v0.20.1) with one CDI
 #               strategy, and whether the node then offers nvidia.com/gpu
 #   pod-*       a pod asking for nvidia.com/gpu runs the CUDA image's
@@ -149,22 +151,33 @@ PY
 step cluster "" "$KIND" create cluster --name "$CLUSTER" --config "$OUT/kind.yaml" --wait 180s --kubeconfig "$KUBECONFIG" || exit 1
 step node "containerd and CDI in the node" bash -c "docker exec '$NODE' containerd --version; docker exec '$NODE' sh -c 'containerd config dump | grep -n -i cdi'; docker exec '$NODE' sh -c 'ls -l /dev/dxg /usr/lib/wsl/lib 2>&1 | head -20'"
 
-# images into the node, by a local tag (a digest does not survive kind load)
+# Images into the node, each under its own reference and a local tag: pods
+# here use the tag, and the digest step below asks whether the reference the
+# flagship's and the gateway's manifests use survived the load.
 docker tag "$CUDA_IMAGE" kindgpu-probe/cuda:local
-loads=(kindgpu-probe/cuda:local)
-if [ "$TEST" = 0 ]; then docker tag "$PLUGIN_IMAGE" kindgpu-probe/device-plugin:local; loads+=(kindgpu-probe/device-plugin:local); fi
+loads=("$CUDA_IMAGE=kindgpu-probe/cuda:local")
+if [ "$TEST" = 0 ]; then docker tag "$PLUGIN_IMAGE" kindgpu-probe/device-plugin:local; loads+=("$PLUGIN_IMAGE=kindgpu-probe/device-plugin:local"); fi
 # One platform's archive each: a multi-platform image whose other platforms
 # are not here fails kind's import of all of them.
 load() {
-  local arch tmp; arch="$(docker version -f '{{.Server.Arch}}')"; tmp="$OUT/.load"; mkdir -p "$tmp"
-  for i in "$@"; do
-    docker save --platform "linux/$arch" -o "$tmp/image.tar" "$i" 2>/dev/null || docker save -o "$tmp/image.tar" "$i" || return 1
+  local arch tmp ref tag; arch="$(docker version -f '{{.Server.Arch}}')"; tmp="$OUT/.load"; mkdir -p "$tmp"
+  for pair in "$@"; do
+    ref="${pair%%=*}"; tag="${pair#*=}"
+    docker save --platform "linux/$arch" -o "$tmp/image.tar" "$ref" "$tag" 2>/dev/null \
+      || docker save -o "$tmp/image.tar" "$ref" "$tag" || return 1
     "$KIND" load image-archive --name "$CLUSTER" "$tmp/image.tar" || return 1
     rm -f "$tmp/image.tar"
   done
   rmdir "$tmp"
 }
 step load "" load "${loads[@]}" || exit 1
+info() {  # info NAME NOTE CMD...: like step, but a negative answer is a finding, not a failure
+  local name="$1" note="$2" t0; shift 2; t0="$(date +%s)"
+  if "$@" >"$OUT/$name.log" 2>&1; then record "$name" PASS "$(( $(date +%s) - t0 ))" "$note"
+  else record "$name" NO "$(( $(date +%s) - t0 ))" "$note"; fi
+}
+info digest "the node finds the CUDA image by the digest the manifests name, without a pull" \
+  docker exec "$NODE" crictl inspecti -o go-template --template '{{.status.id}} {{.status.repoDigests}}' "$CUDA_IMAGE"
 if [ "$TEST" = 1 ]; then skip plugin "--test: no GPU here"; skip pod "--test: no GPU here"; exit 0; fi
 
 plugin_yaml() {  # plugin_yaml STRATEGY: the gateway's DaemonSet, with the GPU-P paths and the driver root
