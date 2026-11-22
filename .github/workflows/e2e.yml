@@ -64,7 +64,7 @@ jobs:
           shellcheck scripts/*.sh tests/*.sh
 
       - name: The Python compiles
-        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py workstation/isolation_check.py workstation/run_series.py workstation/memory_probe.py tests/stub_server.py tests/plant-violations.py
+        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py workstation/isolation_check.py workstation/run_series.py workstation/memory_probe.py train/release.py train/generate.py train/check_data.py tests/stub_server.py tests/plant-violations.py
 
       # The workstation's isolation check (ADR 3), shown a closed container
       # and each way of opening it, and broken in turn: it is trusted on the
@@ -91,6 +91,15 @@ jobs:
         run: |
           ./tests/recompute.sh | tee -a "$GITHUB_STEP_SUMMARY"
           PLANTS=tests/recompute-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/recompute.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Line 3's training data (ADR 4), generated again from the verified
+      # release and held to the bytes train/data.lock pins, then shown each
+      # thing it must not carry: the release's customers, addresses, documents
+      # and words, a plant in another language, an email the user did not ask for.
+      - name: Line 3's training data, and the breaks it exists for
+        run: |
+          ./tests/train_data.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          PLANTS=tests/train-data-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/train_data.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
   # The workstation's series runner (ADR 3), on a plan whose server is the
   # stub in a container: a whole series, a unit cut short and redone, a model

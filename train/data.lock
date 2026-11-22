@@ -1,0 +1,9 @@
+# Line 3's training data (ADR 4): the sha256 of each file train/generate.py
+# writes with its default seed and count, from the flagship release
+# sources.lock pins. tests/train_data.sh generates them again and compares.
+# A change to the generator, its seed or the release changes these lines in
+# the same commit.
+#
+# sha256  file
+dac02d173991847491bbd5381390d2dcd55de8c1f2607803ea4f55edd94ef82a  train.jsonl
+ea19be7673bd834aba0be200e6b694fd627d7d07749c151199d8a1935cca3771  valid.jsonl
