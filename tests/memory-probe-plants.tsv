@@ -1,0 +1,8 @@
+# file	old	new	what tests/memory_probe.sh must notice
+"workstation/memory_probe.py"	"    if os.path.exists(out):\n"	"    if False:\n"	"the probe writes into an OUT that exists"
+"workstation/memory_probe.py"	"    if got != lock[spec[\"model\"]][\"sha256\"]:\n"	"    if False:\n"	"the probe does not compare the model file with its lock"
+"workstation/memory_probe.py"	"            if res.get(\"failed\") and n is not None:\n"	"            if False:\n"	"the probe tries a configuration with more on the card after one that did not come up"
+"workstation/memory_probe.py"	"            if time.time() - t_start + last * 1.2 > budget:\n"	"            if False:\n"	"the probe starts a configuration its time budget would not hold"
+"workstation/memory_probe.py"	"        rs.docker_rm(SERVER)\n        time.sleep(2)"	"        time.sleep(2)"	"the probe leaves its server running"
+"workstation/memory_probe.py"	"        with open(os.path.join(out, name + \".server.log\"), \"w\", encoding=\"utf-8\") as f:\n            f.write(logs.stdout + logs.stderr)\n"	""	"the probe does not keep the server's log"
+"workstation/memory_probe.py"	"    names = sorted(n for n in os.listdir(out) if n != \"SHA256SUMS\")\n"	"    names = sorted(n for n in os.listdir(out) if n.endswith(\".jsonl\"))\n"	"the probe leaves files out of SHA256SUMS"

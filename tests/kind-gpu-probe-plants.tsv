@@ -1,0 +1,6 @@
+# file	old	new	what tests/kind_gpu_probe.sh must notice
+"workstation/kind_gpu_probe.sh"	"if [ -e \"$OUT\" ]; then echo \"REFUSED  $OUT exists: a probe never writes over another\"; exit 1; fi\n"	""	"the probe writes into an OUT that exists"
+"workstation/kind_gpu_probe.sh"	"  \"$KIND\" delete cluster --name \"$CLUSTER\" >\"$OUT/teardown.log\" 2>&1\n"	"  : >\"$OUT/teardown.log\"\n"	"the probe leaves its cluster running"
+"workstation/kind_gpu_probe.sh"	"  docker rmi kindgpu-probe/cuda:local kindgpu-probe/device-plugin:local >>\"$OUT/teardown.log\" 2>&1\n"	""	"the probe leaves its image tags behind"
+"workstation/kind_gpu_probe.sh"	"\"      inference.heyvaldemar.com/accelerator: nvidia\","	""	"the node is not labelled as the GPU node the gateway's and the flagship's manifests select"
+"workstation/kind_gpu_probe.sh"	"names = sorted(n for n in os.listdir(out) if n != \"SHA256SUMS\" and not n.startswith(\".\"))"	"names = sorted(n for n in os.listdir(out) if n.endswith(\".log\"))"	"the probe leaves files out of SHA256SUMS"

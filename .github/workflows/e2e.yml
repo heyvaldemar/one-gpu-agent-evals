@@ -64,7 +64,7 @@ jobs:
           shellcheck scripts/*.sh tests/*.sh
 
       - name: The Python compiles
-        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py workstation/isolation_check.py workstation/run_series.py tests/stub_server.py tests/plant-violations.py
+        run: python3 -I -m py_compile loadgen/calls.py scripts/recompute.py workstation/isolation_check.py workstation/run_series.py workstation/memory_probe.py tests/stub_server.py tests/plant-violations.py
 
       # The workstation's isolation check (ADR 3), shown a closed container
       # and each way of opening it, and broken in turn: it is trusted on the
@@ -117,6 +117,33 @@ jobs:
         run: |
           ./tests/series.sh | tee -a "$GITHUB_STEP_SUMMARY"
           PLANTS=tests/series-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/series.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # The workstation's two probes, never published: the memory probe on a spec
+  # whose server is the stub in a container, and the kind probe with --test,
+  # which brings up one kind node with the GPU node's labels and records every
+  # GPU step as skipped. Each broken in turn.
+  probes:
+    name: The workstation's probes, and the breaks they exist for
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Tools, pinned and checked
+        run: echo "$(./scripts/install-tools.sh)" >> "$GITHUB_PATH"
+
+      - name: The memory probe, and the breaks it exists for
+        run: |
+          ./tests/memory_probe.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          PLANTS=tests/memory-probe-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/memory_probe.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: The kind probe, and the breaks it exists for
+        run: |
+          ./tests/kind_gpu_probe.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          PLANTS=tests/kind-gpu-probe-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/kind_gpu_probe.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
   e2e:
     name: The CPU row on kind, recomputed from its records

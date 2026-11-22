@@ -1,4 +1,4 @@
-# make check   the static checks, the recomputation and the isolation check, each shown its breaks (no cluster)
+# make check   the static checks, the recomputation, the isolation check, the series runner and the memory probe, each shown its breaks (no cluster)
 # make up      the verified flagship release, the weights, and a kind cluster
 # make test    the CPU row measured on that cluster, every number recomputed
 # make down    the kind cluster gone (the release and the weights stay in .cache/)
@@ -20,6 +20,8 @@ check: tools
 	PLANTS=tests/isolation-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/isolation.sh
 	./tests/series.sh
 	FLAGSHIP="$(FLAGSHIP_DIR)" PLANTS=tests/series-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/series.sh
+	./tests/memory_probe.sh
+	PLANTS=tests/memory-probe-plants.tsv python3 -I -u tests/plant-violations.py -- bash tests/memory_probe.sh
 
 up: tools
 	./scripts/up.sh
