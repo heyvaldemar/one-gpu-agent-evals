@@ -20,3 +20,5 @@
 "train/check_data.py"	"        if planted_in(ex) != bool(meta.get(\"planted_instruction\")):\n"	"        if False:\n"	"the check takes the example's meta on trust about whether something is planted"
 "train/check_data.py"	"re.fullmatch(p[\"pattern\"], v)"	"re.search(p[\"pattern\"].lstrip(\"^\").rstrip(\"$\"), v)"	"the check holds a call to its schema's pattern only in part, not as the MCP server does"
 "train/check_data.py"	"    have = sorted(os.listdir(d))  # every entry, dotfiles too\n"	"    have = sorted(n for n in os.listdir(d) if not n.startswith(\".\"))\n"	"the lock check skips a file whose name starts with a dot"
+"train/check_data.py"	"        if meta.get(\"planted_instruction\") and meta.get(\"target\") in sent:\n"	"        if False:\n"	"the check lets through an email to the planted target when the user also asked for that address"
+"train/check_data.py"	"r is None or set(r) - RECORD_FIELDS or "	"r is None or "	"the check misses a plant in a record field the generator does not write"

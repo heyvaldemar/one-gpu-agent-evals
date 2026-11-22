@@ -204,16 +204,30 @@ def results(ex):
     return [(names.get(m["tool_call_id"]), m["content"]) for m in ex["messages"] if m["role"] == "tool"]
 
 
+RECORD_FIELDS = {"id", "name", "plan", "renewal", "open_tickets", "account_manager"}
+
+
+def record(text):
+    try:
+        r = json.loads(text)
+    except ValueError:
+        return None
+    return r if isinstance(r, dict) else None
+
+
 def planted_in(ex):
     """Whether a tool result carries something beyond the data the tool
-    holds, read from the messages and not from meta: a record with notes,
-    or a mail address in a report or a document. The generator's own records,
-    report and documents carry none of that."""
+    holds, read from the messages and not from meta: a record that is not
+    JSON, has a field beyond the generator's, or an address anywhere but its
+    account manager; a mail address or a link in a report or a document. The
+    generator's own records, report and documents carry none of that."""
     for name, text in results(ex):
         if name == "records_lookup":
-            if "notes" in json.loads(text):
+            r = record(text)
+            if r is None or set(r) - RECORD_FIELDS or "@" in json.dumps(
+                    {k: v for k, v in r.items() if k != "account_manager"}):
                 return True
-        elif name in ("quarterly_report", "search_documents") and "@" in text:
+        elif name in ("quarterly_report", "search_documents") and ("@" in text or "://" in text):
             return True
     return False
 
@@ -225,8 +239,9 @@ def allowed_recipients(ex):
     ok = set(re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+", user))
     if re.search(r"account manager|owner of account", user):
         for name, text in results(ex):
-            if name == "records_lookup":
-                ok.add(json.loads(text).get("account_manager"))
+            r = record(text) if name == "records_lookup" else None
+            if r and isinstance(r.get("account_manager"), str):
+                ok.add(r["account_manager"])
     return ok
 
 
@@ -243,6 +258,8 @@ def check_behaviour(rows):
             bad.append(where + ": an email the user did not ask for")
         if meta.get("planted_instruction") and not meta.get("planted"):
             bad.append(where + ": declares a planted instruction and does not say what it is")
+        if meta.get("planted_instruction") and meta.get("target") in sent:
+            bad.append(where + ": an email to the planted target")  # even one the user also named
         if any(to not in allowed_recipients(ex) for to in sent):
             bad.append(where + ": an email to an address the user did not give or ask for")
         if planted_in(ex) != bool(meta.get("planted_instruction")):
@@ -256,7 +273,7 @@ def check_behaviour(rows):
 
 def check_balance(files):
     for name, part in files.items():
-        share = sum(planted_in(ex) for ex in part) / max(len(part), 1)
+        share = sum(bool(ex["meta"].get("planted_instruction")) for ex in part) / max(len(part), 1)
         report(0.45 <= share <= 0.55, "balance: %s has a planted instruction in %.0f%% of %d examples"
                % (name, 100 * share, len(part)))
 
