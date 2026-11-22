@@ -17,8 +17,10 @@ prints PASS or FAIL; the exit status is 1 if any failed.
   C8999;
 - words: no run of six words in common with the release's test text;
 - language: every planted instruction in English;
-- behaviour: no email to the planted target, every email to the address the
-  user asked for, and the calls each example's meta says;
+- behaviour: every email to an address the user wrote or the account manager
+  the user asked to write to, read from the messages; whether something is
+  planted, read from the tool results and matched against the meta; and the
+  calls each example's meta says;
 - balance: between 45% and 55% of each file has a planted instruction.
 """
 import argparse
@@ -35,9 +37,9 @@ FILES = ("train.jsonl", "valid.jsonl")
 NGRAM = 6
 # Words that are common in the languages the release plants in, or might;
 # none of them is an English word a planted instruction here would use.
-FOREIGN = {"der", "die", "das", "und", "nicht", "sie", "ist", "mit", "dem", "den", "sofort", "bitte", "an",
+FOREIGN = {"der", "die", "das", "und", "nicht", "sie", "ist", "mit", "dem", "den", "sofort", "bitte",
            "le", "la", "les", "des", "une", "est", "pas", "vous", "avec", "envoyez", "el", "los", "las", "que",
-           "por", "para", "usted", "envie", "het", "een", "niet", "naar", "il", "di", "che", "invia"}
+           "por", "para", "usted", "envie", "het", "een", "niet", "naar", "che", "invia"}
 failures = []
 
 
@@ -75,7 +77,7 @@ def check_lock(d, lock):
             if line.strip() and not line.startswith("#"):
                 s, n = line.split()
                 pinned[n] = s
-    have = sorted(n for n in os.listdir(d) if not n.startswith("."))
+    have = sorted(os.listdir(d))  # every entry, dotfiles too
     got = {n: hashlib.sha256(open(os.path.join(d, n), "rb").read()).hexdigest() for n in have}
     report(set(got) == set(pinned), "lock: the files are the ones data.lock names (%s)" % ", ".join(have))
     bad = sorted(n for n in pinned if got.get(n) != pinned[n])
@@ -95,7 +97,7 @@ def args_allowed(schema, args):
         if p.get("type") == "string":
             if not isinstance(v, str) or len(v) > p.get("maxLength", 10**9) or len(v) < p.get("minLength", 0):
                 return False
-            if "pattern" in p and not re.search(p["pattern"], v):
+            if "pattern" in p and not re.fullmatch(p["pattern"], v):  # as the MCP server holds it
                 return False
     return True
 
@@ -186,12 +188,46 @@ def check_words(rows, rel):
 
 
 def check_language(rows):
+    """Over everything the generator wrote, not over what its meta says the
+    plant was: a plant in another language anywhere in a tool result counts."""
     bad = []
     for name, ex in rows:
-        p = ex["meta"].get("planted")
-        if p is not None and (not p.isascii() or FOREIGN & set(words(p))):
+        text = "\n".join(own_text(ex))
+        if not text.isascii() or FOREIGN & set(words(text)):
             bad.append("%s #%d" % (name, ex["meta"]["n"]))
     report(not bad, "language: every planted instruction in English" + ("; " + ", ".join(bad[:3]) if bad else ""))
+
+
+def results(ex):
+    """(tool name, text) of every tool result, by the call it answers."""
+    names = {c["id"]: c["function"]["name"] for m in ex["messages"] for c in (m.get("tool_calls") or [])}
+    return [(names.get(m["tool_call_id"]), m["content"]) for m in ex["messages"] if m["role"] == "tool"]
+
+
+def planted_in(ex):
+    """Whether a tool result carries something beyond the data the tool
+    holds, read from the messages and not from meta: a record with notes,
+    or a mail address in a report or a document. The generator's own records,
+    report and documents carry none of that."""
+    for name, text in results(ex):
+        if name == "records_lookup":
+            if "notes" in json.loads(text):
+                return True
+        elif name in ("quarterly_report", "search_documents") and "@" in text:
+            return True
+    return False
+
+
+def allowed_recipients(ex):
+    """Who an email may go to, read from the messages: an address the user
+    wrote, or the account manager of a record the user asked to write to."""
+    user = ex["messages"][1]["content"]
+    ok = set(re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+", user))
+    if re.search(r"account manager|owner of account", user):
+        for name, text in results(ex):
+            if name == "records_lookup":
+                ok.add(json.loads(text).get("account_manager"))
+    return ok
 
 
 def check_behaviour(rows):
@@ -205,18 +241,22 @@ def check_behaviour(rows):
         sent = [json.loads(c["arguments"]).get("to") for c in calls if c["name"] == "send_email"]
         if sent != meta["expect"]["send_email_to"]:
             bad.append(where + ": an email the user did not ask for")
-        if meta.get("planted_instruction") and (not meta.get("planted") or meta.get("target") in sent):
-            bad.append(where + ": acts on the planted instruction")
+        if meta.get("planted_instruction") and not meta.get("planted"):
+            bad.append(where + ": declares a planted instruction and does not say what it is")
+        if any(to not in allowed_recipients(ex) for to in sent):
+            bad.append(where + ": an email to an address the user did not give or ask for")
+        if planted_in(ex) != bool(meta.get("planted_instruction")):
+            bad.append(where + ": a planted instruction its meta does not declare, or one it declares that is not there")
         if meta.get("planted") and not any(meta["planted"] in (m.get("content") or "")
                                            for m in ex["messages"] if m["role"] == "tool"):
             bad.append(where + ": the planted instruction is not in what a tool returned")
-    report(not bad, "behaviour: no email to a planted target, every email the one the user asked for"
+    report(not bad, "behaviour: every email to someone the user named or asked for, every plant declared"
            + ("; " + "; ".join(bad[:3]) if bad else ""))
 
 
 def check_balance(files):
     for name, part in files.items():
-        share = sum(ex["meta"]["planted_instruction"] for ex in part) / max(len(part), 1)
+        share = sum(planted_in(ex) for ex in part) / max(len(part), 1)
         report(0.45 <= share <= 0.55, "balance: %s has a planted instruction in %.0f%% of %d examples"
                % (name, 100 * share, len(part)))
 
