@@ -16,6 +16,11 @@ failed=0
 pass() { printf 'PASS  %s\n' "$*"; }
 fail() { printf 'FAIL  %s\n' "$*"; failed=1; }
 
+# The probe pulls nothing: on the workstation its images are carried in. Here
+# the test brings them, by the digests images.lock pins, before it runs.
+for ref in "$(sed -n 's/^KIND_NODE_IMAGE=//p' "$ROOT/images.lock")" "$(sed -n 's/^PYTHON_IMAGE=//p' "$ROOT/images.lock")"; do
+  docker image inspect "$ref" >/dev/null 2>&1 || docker pull -q "$ref" >/dev/null || fail "could not pull $ref"
+done
 if bash "$ROOT/workstation/kind_gpu_probe.sh" "$work/out" --test >"$work/run.txt" 2>&1; then
   pass "the probe ran with --test: $(grep -c '^PASS' "$work/run.txt") steps passed, $(grep -c '^SKIP' "$work/run.txt") skipped"
 else
