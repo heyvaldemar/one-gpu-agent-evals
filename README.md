@@ -6,7 +6,9 @@ Every number here is measured on a workstation with an RTX 4090, outside CI, and
 
 ## Where it stands
 
-Nothing measured on the workstation is published yet. What runs today is the half that makes a workstation number checkable:
+**Line 1 is out: [results/line1/TABLE.md](results/line1/TABLE.md).** Measured on a workstation with an RTX 4090, the flagship's Granite-4.0-1B and Granite-4.1-8B on its CUDA server, in three series on three days (line1-2, line1-3, line1-4); each number is the median of three series with the lowest and highest in brackets, computed in CI from the record of every call. None of the 24,936 calls failed. Granite-4.1-8B at concurrency 8 makes 703.6 (679.2-710.1) calls a minute at 450 W and 698.9 (688.4-701.3) at 350 W: the lower limit costs 0.7% there and at most 1.1% at any concurrency, and four server CPUs instead of all of them stay within 4.2%, inside the 4.5% its series spread. Granite-4.0-1B's three series spread up to 19.5% apart, so its differences between power limits and CPU counts, up to 8.3%, cannot be told apart from that spread.
+
+What makes a workstation number checkable runs on every change:
 
 - the flagship's load generator, from its signed release and unchanged, with every call recorded (`loadgen/calls.py`);
 - the recomputation of every reported number from those records (`scripts/recompute.py`), shown a stub server's series and damaged copies of it on every run;
@@ -15,9 +17,9 @@ Nothing measured on the workstation is published yet. What runs today is the hal
 
 The three lines of work, in order:
 
-1. **One model on four kinds of hardware.** The flagship's Granite-4.0-1B and Granite-4.1-8B, its CUDA llama-server by digest and its `capacity.py`: calls a minute, p50 and p95 at concurrency 1 to 8, and the card's power draw, against the flagship's AWS runs on an NVIDIA L4 and an A10G and on CPU.
-2. **Planted instructions by model size.** The flagship's tasks and the planted instructions of [agent-security-benchmark](https://github.com/heyvaldemar/agent-security-benchmark), with their own scorers, against one family of open models from 1B to 32B parameters; and, as a series of its own, gpt-oss-20b and gpt-oss-120b, mixture-of-experts models under Apache-2.0, the larger one with its experts in system memory.
-3. **Fine-tuning against planted instructions.** A small model trained with QLoRA, measured before and after on planted instructions it never saw in training, and on the ordinary tasks it has to keep solving.
+1. **One model on four kinds of hardware** (out, above). The flagship's Granite-4.0-1B and Granite-4.1-8B, its CUDA llama-server by digest and its `capacity.py`: calls a minute, p50 and p95 at concurrency 1 to 8, and the card's power draw, against the flagship's AWS runs on an NVIDIA L4 and an A10G and on CPU.
+2. **Planted instructions by model size** (next, in progress). The flagship's tasks and the planted instructions of [agent-security-benchmark](https://github.com/heyvaldemar/agent-security-benchmark), with their own scorers, against one family of open models from 1B to 32B parameters; and, as a series of its own, gpt-oss-20b and gpt-oss-120b, mixture-of-experts models under Apache-2.0, the larger one with its experts in system memory.
+3. **Fine-tuning against planted instructions** (after line 2, in progress: its data, [ADR 4](docs/decisions/0004-fine-tuned-on-data-the-tests-never-saw.md)). A small model trained with QLoRA, measured before and after on planted instructions it never saw in training, and on the ordinary tasks it has to keep solving.
 
 ## How a number gets here
 
@@ -74,7 +76,7 @@ It deletes the kind cluster. The verified release and the weights stay in `.cach
 
 ## What this does not say
 
-- Nothing about the workstation's numbers yet: none is published.
+- Nothing about lines 2 and 3 yet: neither is published.
 - A recomputed number follows from its records; that does not prove the records are true. What stands behind them is in ADR 1.
 - A number from the workstation is never put in a row with a cloud card's, and never called weekly or daily.
 

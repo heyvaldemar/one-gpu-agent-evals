@@ -9,3 +9,6 @@
 "scripts/recompute.py"	"    if set(listed) != have:\n"	"    if False:\n"	"the table takes a unit with a file its SHA256SUMS does not list"
 "scripts/recompute.py"	"            if hashlib.sha256(f.read()).hexdigest() != h:\n"	"            if False:\n"	"the table takes a unit whose file is not the one its SHA256SUMS hashes"
 "scripts/recompute.py"	"        print(\"| %s | %d W | %s | %d | %.1f (%.1f-%.1f) | %.2f s | %d of %d |\" % (\n            model, w, cpus, c, med, lo, hi, p95, failed, calls))"	"        print(\"| %s | %d W | %s | %d | %.1f (%.1f-%.1f) | %.2f s | %d of %d |\" % (\n            model, w, cpus, c, hi, lo, hi, p95, failed, calls))"	"the table gives the highest series as the median"
+"README.md"	"None of the 24,936 calls failed"	"None of the 24,963 calls failed"	"the README counts the calls of line 1 other than the table does"
+"README.md"	"spread up to 19.5% apart"	"spread up to 12.0% apart"	"the README gives a smaller spread for Granite-4.0-1B than its series have"
+"README.md"	"the lower limit costs 0.7% there"	"the lower limit costs 0.1% there"	"the README gives a cost of the lower power limit the table does not"

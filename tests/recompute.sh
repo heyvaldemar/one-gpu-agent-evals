@@ -89,6 +89,53 @@ if python3 -I "$ROOT/scripts/recompute.py" set "$ROOT/results/line1" 2>"$work/se
 else
   fail "results/line1/TABLE.md is not the table its series give: $(tail -1 "$work/set.err")$(diff "$work/table.md" "$ROOT/results/line1/TABLE.md" | head -4)"
 fi
+# Every figure the README gives for line 1 is computed here from TABLE.md,
+# and must be in the README as written.
+if python3 -I - "$ROOT/results/line1/TABLE.md" "$ROOT/README.md" >"$work/readme.txt" 2>&1 <<'PY2'
+import re, sys
+rows = []
+for line in open(sys.argv[1], encoding="utf-8"):
+    m = re.match(r"\| (\S+) \| (\d+) W \| (\S+) \| (\d+) \| ([\d.]+) \(([\d.]+)-([\d.]+)\) \| [\d.]+ s \| (\d+) of (\d+) \|", line)
+    if m:
+        rows.append({"model": m[1], "w": int(m[2]), "cpus": m[3], "c": int(m[4]), "med": float(m[5]),
+                     "lo": float(m[6]), "hi": float(m[7]), "failed": int(m[8]), "calls": int(m[9])})
+def cell(model, w, cpus, c):
+    return next(r for r in rows if (r["model"], r["w"], r["cpus"], r["c"]) == (model, w, cpus, c))
+def pct(a, b):
+    return "%.1f%%" % (abs(a / b - 1) * 100)
+def most(model, f):
+    return max(f(r) for r in rows if r["model"] == model and f(r) is not None)
+def other(r, **k):
+    try:
+        return cell(r["model"], k.get("w", r["w"]), k.get("cpus", r["cpus"]), r["c"])
+    except StopIteration:
+        return None
+b8, b1 = "granite-4.1-8b", "granite-4.0-1b"
+a, z = cell(b8, 450, "all", 8), cell(b8, 350, "all", 8)
+power = lambda r: abs(r["med"] / other(r, w=450)["med"] - 1) * 100 if r["w"] == 350 else None
+cpus = lambda r: abs(r["med"] / other(r, cpus="all")["med"] - 1) * 100 if r["cpus"] != "all" else None
+spread = lambda r: (r["hi"] / r["lo"] - 1) * 100
+said = {
+    "every call": "None of the {:,} calls failed".format(sum(r["calls"] for r in rows)) if not sum(r["failed"] for r in rows) else "a failed call",
+    "8B at 450 W, c=8": "%.1f (%.1f-%.1f) calls a minute at 450 W" % (a["med"], a["lo"], a["hi"]),
+    "8B at 350 W, c=8": "%.1f (%.1f-%.1f) at 350 W" % (z["med"], z["lo"], z["hi"]),
+    "8B power, c=8": "costs %s there" % pct(z["med"], a["med"]),
+    "8B power, any c": "at most %.1f%% at any concurrency" % most(b8, power),
+    "8B CPUs": "stay within %.1f%%" % most(b8, cpus),
+    "8B spread": "inside the %.1f%% its series spread" % most(b8, spread),
+    "1B spread": "spread up to %.1f%% apart" % most(b1, spread),
+    "1B differences": "up to %.1f%%, cannot" % max(most(b1, power), most(b1, cpus)),
+}
+readme = open(sys.argv[2], encoding="utf-8").read()
+missing = [k + ": " + v for k, v in said.items() if v not in readme]
+print("; ".join(missing) if missing else "%d figures" % len(said))
+sys.exit(1 if missing else 0)
+PY2
+then
+  pass "every figure the README gives for line 1 is the one TABLE.md gives: $(cat "$work/readme.txt")"
+else
+  fail "the README's line 1 figures are not the table's: $(cat "$work/readme.txt")"
+fi
 cp -R "$ROOT/results/line1" "$work/set-extra"
 u="$(find "$work/set-extra/line1-3/units" -mindepth 1 -maxdepth 1 -type d | sort | head -1)"
 printf 'x\n' >"$u/extra.txt"
