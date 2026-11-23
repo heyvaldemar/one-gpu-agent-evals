@@ -1,0 +1,4 @@
+concurrency 1: 290.4 calls/min, p50 0.2s, p95 0.37s, 117.3 output tokens/s, 0 of 146 failed
+concurrency 2: 474.8 calls/min, p50 0.25s, p95 0.34s, 177.3 output tokens/s, 0 of 239 failed
+concurrency 4: 605.9 calls/min, p50 0.38s, p95 0.69s, 231.7 output tokens/s, 0 of 309 failed
+concurrency 8: 703.6 calls/min, p50 0.63s, p95 1.29s, 275.6 output tokens/s, 0 of 360 failed

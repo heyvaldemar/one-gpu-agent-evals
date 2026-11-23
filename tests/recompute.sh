@@ -78,4 +78,31 @@ rs = [json.loads(l) for l in open(sys.argv[1])]
 c = next(r for r in rs if r["type"] == "call" and r["level"] is not None and not r["ok"])
 c.update(ok=True, error=None, prompt=500, completion=20)
 open(sys.argv[2], "w").writelines(json.dumps(r) + "\n" for r in rs)'
+
+# Line 1's table (ADR 1): results/line1/TABLE.md is what recompute.py set
+# computes from the three series under it, every unit whole and recomputed
+# from its calls; a unit with a file its SHA256SUMS does not list, or a
+# record changed after it was hashed, stops the table.
+if python3 -I "$ROOT/scripts/recompute.py" set "$ROOT/results/line1" 2>"$work/set.err" >"$work/table.md" \
+    && cmp -s "$work/table.md" "$ROOT/results/line1/TABLE.md"; then
+  pass "results/line1/TABLE.md is the table recompute.py computes from line1-2, line1-3 and line1-4"
+else
+  fail "results/line1/TABLE.md is not the table its series give: $(tail -1 "$work/set.err")$(diff "$work/table.md" "$ROOT/results/line1/TABLE.md" | head -4)"
+fi
+cp -R "$ROOT/results/line1" "$work/set-extra"
+u="$(find "$work/set-extra/line1-3/units" -mindepth 1 -maxdepth 1 -type d | sort | head -1)"
+printf 'x\n' >"$u/extra.txt"
+if python3 -I "$ROOT/scripts/recompute.py" set "$work/set-extra" >/dev/null 2>"$work/set-extra.err"; then
+  fail "a unit with a file its SHA256SUMS does not list went into the table"
+else
+  pass "a unit with a file its SHA256SUMS does not list stops the table: $(tail -1 "$work/set-extra.err")"
+fi
+cp -R "$ROOT/results/line1" "$work/set-changed"
+u="$(find "$work/set-changed/line1-4/units" -mindepth 1 -maxdepth 1 -type d | sort | head -1)"
+printf 'x\n' >>"$u/server.log"  # a file the recomputation does not read: only its hash holds it
+if python3 -I "$ROOT/scripts/recompute.py" set "$work/set-changed" >/dev/null 2>"$work/set-changed.err"; then
+  fail "a unit changed after it was hashed went into the table"
+else
+  pass "a unit changed after it was hashed stops the table: $(tail -1 "$work/set-changed.err")"
+fi
 exit "$failed"

@@ -1,0 +1,56 @@
+{
+  "client_exit": 0,
+  "ended": "2026-11-22T04:14:31Z",
+  "gpu": {
+    "driver_version": "621.24",
+    "name": "NVIDIA GeForce RTX 4090",
+    "power.limit": "450.00"
+  },
+  "images": {
+    "client": "docker.io/library/python:3.13-alpine@sha256:1e1f6334529d1fb26a2ef619d7cffb30a7c7d7cc1cc7338ebee283a58d1aeaca",
+    "server": "ghcr.io/ggml-org/llama.cpp:server-cuda-b11429@sha256:a863a2d1dc2cbc5326c995ae380eec9c57f37a7e1cac944f0c6f43e4e9afff23"
+  },
+  "power_limit": "450.0 W, read in the environment",
+  "preflight_at": "2026-11-22T04:05:40Z",
+  "requests": 28,
+  "requests_sha256": "603153b0dc5fd6abc0109c2ab5b9ee069603239e43509771f1884ee64be7aa95",
+  "server_args": [
+    "-m",
+    "/models/model.gguf",
+    "--alias",
+    "granite-4.1-8b",
+    "--jinja",
+    "-c",
+    "65536",
+    "-np",
+    "8",
+    "-ngl",
+    "99",
+    "--metrics",
+    "--cache-ram",
+    "512",
+    "--reasoning",
+    "off",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8080"
+  ],
+  "server_cpus": "0-3",
+  "server_log": "kept",
+  "started": "2026-11-22T04:12:25Z",
+  "time_to_ready_s": 1.8,
+  "unit": {
+    "id": "granite-4.1-8b-450w-4-cpus",
+    "levels": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "min_seconds": 30,
+    "model": "granite-4.1-8b",
+    "power_limit_w": 450,
+    "server_cpus": "0-3"
+  }
+}

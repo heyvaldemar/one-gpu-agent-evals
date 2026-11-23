@@ -5,3 +5,7 @@
 "scripts/recompute.py"	"if rep.get(k) != v}"	"if k == \"calls\" and rep.get(k) != v}"	"the recomputation compares the number of calls and nothing else"
 "scripts/recompute.py"	"    ok = [d for d in done if d[\"ok\"]]\n"	"    ok = done\n"	"the recomputation counts a failed call as answered"
 "tests/stub_server.py"	"if n % 7 == 0:"	"if n % 100000 == 0:"	"the stub never fails a call, so a failed call is never recomputed"
+"results/line1/TABLE.md"	"| granite-4.1-8b | 350 W | all | 8 | 698.9 (688.4-701.3)"	"| granite-4.1-8b | 350 W | all | 8 | 708.9 (688.4-701.3)"	"a number in line 1's table that its series do not give"
+"scripts/recompute.py"	"    if set(listed) != have:\n"	"    if False:\n"	"the table takes a unit with a file its SHA256SUMS does not list"
+"scripts/recompute.py"	"            if hashlib.sha256(f.read()).hexdigest() != h:\n"	"            if False:\n"	"the table takes a unit whose file is not the one its SHA256SUMS hashes"
+"scripts/recompute.py"	"        print(\"| %s | %d W | %s | %d | %.1f (%.1f-%.1f) | %.2f s | %d of %d |\" % (\n            model, w, cpus, c, med, lo, hi, p95, failed, calls))"	"        print(\"| %s | %d W | %s | %d | %.1f (%.1f-%.1f) | %.2f s | %d of %d |\" % (\n            model, w, cpus, c, hi, lo, hi, p95, failed, calls))"	"the table gives the highest series as the median"

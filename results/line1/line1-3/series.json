@@ -1,0 +1,147 @@
+{
+  "done_sums": {
+    "granite-4.0-1b-350w-all-cpus": "7e669059fde4d3d1c3dcdc74f2ef1b7f6d5dcb2a1be6150251ce0733f140b5a2",
+    "granite-4.0-1b-450w-4-cpus": "5c21e2eb35f00f121a8610b375937d52185a07614cc3e052c836e407e6f71eb3",
+    "granite-4.0-1b-450w-all-cpus": "046d69a4d2323394ec3c63210dd014d2e24f59941534cf3aa8b4e7cc4b124df7",
+    "granite-4.1-8b-350w-all-cpus": "2841406538b8ba7e29b84794d663f0ea785404837fe12148b559bdb29566ec17",
+    "granite-4.1-8b-450w-4-cpus": "26eaaa1d754527a8692cc1e06fd7e69f1fa0ef46cbf0836d3f664c1f77366786",
+    "granite-4.1-8b-450w-all-cpus": "69d35b9a8ef2d9ea58b023bdd5c3841440b9cde48a99b151a636c8c73ad7c9be"
+  },
+  "invocations": [
+    {
+      "ended": "2026-11-22T04:14:31Z",
+      "interrupted_units": [],
+      "only": null,
+      "power_limit_w": "450",
+      "preflight": {
+        "at": "2026-11-22T04:05:40Z",
+        "carry_in": {
+          "list": "SHA256SUMS",
+          "list_sha256": "4d3193d2d4852748b69cd0adadd19a9fba81efc2370f9fc83f276f594638cb82",
+          "state": "verified"
+        },
+        "conditions": {
+          "driver_version": "621.24",
+          "gpu": "NVIDIA GeForce RTX 4090",
+          "guest_memory_kib": 10184624,
+          "kernel": "6.18.33.2-microsoft-standard-WSL2",
+          "pcie_link_width": "8"
+        },
+        "docker": "29.9.3",
+        "flagship": {
+          "archive_sha256": "623da314d0e2c13a29bc85ef60cdf5ab975f542f3342448721e898fc6e29cb4d",
+          "tag": "v1.9.0",
+          "unpacked": {
+            "changed": 0,
+            "extra": 0,
+            "files": 223,
+            "missing": 0
+          }
+        },
+        "gpu": {
+          "driver_version": "621.24",
+          "memory.total": "24564",
+          "memory.used": "2095",
+          "name": "NVIDIA GeForce RTX 4090",
+          "pcie.link.width.current": "8",
+          "power.limit": "450.00",
+          "utilization.gpu": "0"
+        },
+        "isolation": {
+          "check_sha256": "d5f4c2c997947aecdae10808a3cf5e0e30fbc039ed7f1b8da8391d799b54769b",
+          "record": "isolation-20261122T040540Z.json",
+          "state": "passed"
+        },
+        "kernel": "6.18.33.2-microsoft-standard-WSL2",
+        "models": {
+          "granite-4.0-1b": {
+            "license": "Apache-2.0",
+            "pinned": "22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f1",
+            "sha256": "22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f1"
+          },
+          "granite-4.1-8b": {
+            "license": "Apache-2.0",
+            "pinned": "ed902ac9eb6adce5a90c6a08c8ea201b50e23fdc5976d1cd0362006afac5309e",
+            "sha256": "ed902ac9eb6adce5a90c6a08c8ea201b50e23fdc5976d1cd0362006afac5309e"
+          }
+        }
+      },
+      "started": "2026-11-22T04:05:40Z",
+      "units": {
+        "granite-4.0-1b-450w-4-cpus": "done",
+        "granite-4.0-1b-450w-all-cpus": "done",
+        "granite-4.1-8b-450w-4-cpus": "done",
+        "granite-4.1-8b-450w-all-cpus": "done"
+      }
+    },
+    {
+      "ended": "2026-11-22T04:19:12Z",
+      "interrupted_units": [],
+      "only": null,
+      "power_limit_w": "350",
+      "preflight": {
+        "at": "2026-11-22T04:14:31Z",
+        "carry_in": {
+          "list": "SHA256SUMS",
+          "list_sha256": "4d3193d2d4852748b69cd0adadd19a9fba81efc2370f9fc83f276f594638cb82",
+          "state": "verified"
+        },
+        "conditions": {
+          "driver_version": "621.24",
+          "gpu": "NVIDIA GeForce RTX 4090",
+          "guest_memory_kib": 10184624,
+          "kernel": "6.18.33.2-microsoft-standard-WSL2",
+          "pcie_link_width": "8"
+        },
+        "docker": "29.9.3",
+        "flagship": {
+          "archive_sha256": "623da314d0e2c13a29bc85ef60cdf5ab975f542f3342448721e898fc6e29cb4d",
+          "tag": "v1.9.0",
+          "unpacked": {
+            "changed": 0,
+            "extra": 0,
+            "files": 223,
+            "missing": 0
+          }
+        },
+        "gpu": {
+          "driver_version": "621.24",
+          "memory.total": "24564",
+          "memory.used": "2033",
+          "name": "NVIDIA GeForce RTX 4090",
+          "pcie.link.width.current": "8",
+          "power.limit": "350.00",
+          "utilization.gpu": "1"
+        },
+        "isolation": {
+          "check_sha256": "d5f4c2c997947aecdae10808a3cf5e0e30fbc039ed7f1b8da8391d799b54769b",
+          "record": "isolation-20261122T041431Z.json",
+          "state": "passed"
+        },
+        "kernel": "6.18.33.2-microsoft-standard-WSL2",
+        "models": {
+          "granite-4.0-1b": {
+            "license": "Apache-2.0",
+            "pinned": "22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f1",
+            "sha256": "22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f1"
+          },
+          "granite-4.1-8b": {
+            "license": "Apache-2.0",
+            "pinned": "ed902ac9eb6adce5a90c6a08c8ea201b50e23fdc5976d1cd0362006afac5309e",
+            "sha256": "ed902ac9eb6adce5a90c6a08c8ea201b50e23fdc5976d1cd0362006afac5309e"
+          }
+        }
+      },
+      "started": "2026-11-22T04:14:31Z",
+      "units": {
+        "granite-4.0-1b-350w-all-cpus": "done",
+        "granite-4.0-1b-450w-4-cpus": "done before",
+        "granite-4.0-1b-450w-all-cpus": "done before",
+        "granite-4.1-8b-350w-all-cpus": "done",
+        "granite-4.1-8b-450w-4-cpus": "done before",
+        "granite-4.1-8b-450w-all-cpus": "done before"
+      }
+    }
+  ],
+  "plan_sha256": "bbbd153a30adc2aded5e8931c4345b98ad5458c582d23fba03f842763faf87a6"
+}

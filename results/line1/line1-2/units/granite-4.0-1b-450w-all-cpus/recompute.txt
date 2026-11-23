@@ -1,0 +1,4 @@
+PASS  concurrency 1: 617.9 calls a minute, p50 0.09 s, p95 0.11 s, 0 of 309 failed, recomputed from 309 call records
+PASS  concurrency 2: 815.7 calls a minute, p50 0.15 s, p95 0.19 s, 0 of 409 failed, recomputed from 409 call records
+PASS  concurrency 4: 891.8 calls a minute, p50 0.26 s, p95 0.35 s, 0 of 447 failed, recomputed from 447 call records
+PASS  concurrency 8: 1100.5 calls a minute, p50 0.44 s, p95 0.54 s, 0 of 559 failed, recomputed from 559 call records

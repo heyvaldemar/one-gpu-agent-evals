@@ -1,0 +1,58 @@
+{
+ "levels": [
+  {
+   "calls": 309,
+   "calls_per_min": 617.9,
+   "concurrency": 1,
+   "failed": 0,
+   "out_tokens_per_s": 234.6,
+   "p50_s": 0.09,
+   "p95_s": 0.11,
+   "prompt_tokens_mean": 636.0,
+   "wall_s": 30.0
+  },
+  {
+   "calls": 409,
+   "calls_per_min": 815.7,
+   "concurrency": 2,
+   "failed": 0,
+   "out_tokens_per_s": 291.1,
+   "p50_s": 0.15,
+   "p95_s": 0.19,
+   "prompt_tokens_mean": 636.0,
+   "wall_s": 30.1
+  },
+  {
+   "calls": 447,
+   "calls_per_min": 891.8,
+   "concurrency": 4,
+   "failed": 0,
+   "out_tokens_per_s": 332.9,
+   "p50_s": 0.26,
+   "p95_s": 0.35,
+   "prompt_tokens_mean": 636.0,
+   "wall_s": 30.1
+  },
+  {
+   "calls": 559,
+   "calls_per_min": 1100.5,
+   "concurrency": 8,
+   "failed": 0,
+   "out_tokens_per_s": 393.7,
+   "p50_s": 0.44,
+   "p95_s": 0.54,
+   "prompt_tokens_mean": 637.0,
+   "wall_s": 30.5
+  }
+ ],
+ "min_seconds": 30.0,
+ "requests": 28,
+ "server": {
+  "ACCELERATOR": "GPU, NVIDIA GeForce RTX 4090, a workstation",
+  "CONTEXT": null,
+  "MODEL": "granite-4.0-1b",
+  "RUNNER_CPUS": null,
+  "SLOTS": "8",
+  "THREADS": "0"
+ }
+}

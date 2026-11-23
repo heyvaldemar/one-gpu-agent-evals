@@ -4,6 +4,7 @@ each call.
 
     recompute.py check OUT.json CALLS.jsonl   OUT.json must follow from CALLS.jsonl
     recompute.py table DIR                    one table from every series under DIR
+    recompute.py set DIR                      line 1's table from a set of series under DIR
 
 A series measured on a workstation is not signed by CI. What CI can do is
 take the record of every call (loadgen/calls.py) and compute each level's
@@ -18,7 +19,9 @@ p50, p95, output tokens a second and the mean prompt; and that the records
 are whole: a start, one level record per level in the order asked for, the
 calls that level counted and no others, an end.
 """
+import contextlib
 import glob
+import hashlib
 import json
 import os
 import statistics
@@ -126,10 +129,74 @@ def table(directory):
             lv["out_tokens_per_s"], lv["failed"], lv["calls"]))
 
 
+def whole(unit):
+    """A unit's files are the ones its SHA256SUMS lists, each with its hash;
+    only the runner's done marker, written after, stands outside it."""
+    listed = {}
+    with open(os.path.join(unit, "SHA256SUMS"), encoding="utf-8") as f:
+        for line in f:
+            h, n = line.rstrip("\n").split("  ", 1)
+            listed[n] = h
+    have = {n for n in os.listdir(unit) if n not in ("SHA256SUMS", "done")}
+    if set(listed) != have:
+        return "files %s are not the ones its SHA256SUMS lists" % sorted(have ^ set(listed))
+    for n, h in listed.items():
+        with open(os.path.join(unit, n), "rb") as f:
+            if hashlib.sha256(f.read()).hexdigest() != h:
+                return "%s is not the file its SHA256SUMS hashes" % n
+    return None
+
+
+def series_set(directory):
+    """Line 1's table (ADR 1): every unit of every series under DIR, whole and
+    recomputed from its calls, and for each unit and concurrency the median
+    of the series' calls a minute with their lowest and highest, the median
+    p95, and the failed calls of all of them. A unit missing from a series
+    fails it: a set is the same plan measured on different days."""
+    names = sorted(d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d, "units")))
+    units = {n: sorted(os.listdir(os.path.join(directory, n, "units"))) for n in names}
+    if len(names) < 2 or any(units[n] != units[names[0]] for n in names):
+        sys.exit("the series under %s do not hold the same units: %s" % (directory, units))
+    rows = []
+    for u in units[names[0]]:
+        per = []
+        for n in names:
+            d = os.path.join(directory, n, "units", u)
+            bad = whole(d)
+            if bad:
+                sys.exit("%s/%s: %s" % (n, u, bad))
+            with contextlib.redirect_stdout(sys.stderr):  # the table alone goes to stdout
+                ok = check(os.path.join(d, "capacity.json"), os.path.join(d, "calls.jsonl")) == 0
+            if not ok:
+                sys.exit("%s/%s does not follow from its call records" % (n, u))
+            m = json.load(open(os.path.join(d, "manifest.json"), encoding="utf-8"))["unit"]
+            per.append((m, json.load(open(os.path.join(d, "capacity.json"), encoding="utf-8"))["levels"]))
+        m = per[0][0]
+        if any(x[0] != m for x in per):
+            sys.exit("%s is not the same unit in every series" % u)
+        for i, lv in enumerate(per[0][1]):
+            got = [x[1][i] for x in per]
+            if any(g["concurrency"] != lv["concurrency"] for g in got):
+                sys.exit("%s: the series' levels differ" % u)
+            cpm = [g["calls_per_min"] for g in got]
+            rows.append((m["model"], m["power_limit_w"], m["server_cpus"], lv["concurrency"], statistics.median(cpm),
+                         min(cpm), max(cpm), statistics.median(g["p95_s"] for g in got),
+                         sum(g["failed"] for g in got), sum(g["calls"] for g in got)))
+    print("Measured on a workstation with an RTX 4090, series %s, each recomputed from its call records." % ", ".join(names))
+    print()
+    print("| Model | Power limit | Server CPUs | Concurrency | Calls a minute, median (lowest-highest) | p95, median | Failed |")
+    print("|---|---|---|---|---|---|---|")
+    for model, w, cpus, c, med, lo, hi, p95, failed, calls in rows:
+        print("| %s | %d W | %s | %d | %.1f (%.1f-%.1f) | %.2f s | %d of %d |" % (
+            model, w, cpus, c, med, lo, hi, p95, failed, calls))
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "check":
         sys.exit(check(sys.argv[2], sys.argv[3]))
     if len(sys.argv) == 3 and sys.argv[1] == "table":
         table(sys.argv[2])
+    if len(sys.argv) == 3 and sys.argv[1] == "set":
+        series_set(sys.argv[2])
         sys.exit(0)
     sys.exit(__doc__)
