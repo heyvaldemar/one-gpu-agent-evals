@@ -313,10 +313,19 @@ for strategy in cdi-cri cdi-annotations; do
     done; exit 1"
   if [ $? = 0 ]; then
     pod_yaml >"$OUT/pod.yaml"
+    # The pod's own output goes to a file of its own: tee /dev/stderr into
+    # the step's log reopens that file on Linux and truncates it, which on
+    # 24.11 left the step's log empty. Beside it, the container's state, the
+    # CDI devices the plugin named for it, and the node's containerd log.
     step "pod-$strategy" "a pod asking for nvidia.com/gpu names the card" bash -c "
       '$KUBECTL' apply -f '$OUT/pod.yaml' &&
       for _ in \$(seq 1 90); do p=\$('$KUBECTL' get pod gpu-probe -o jsonpath='{.status.phase}'); case \"\$p\" in Succeeded|Failed) break;; esac; sleep 2; done;
-      '$KUBECTL' describe pod gpu-probe | tail -25; '$KUBECTL' logs gpu-probe 2>&1 | tee /dev/stderr | grep -qiE 'RTX|CUDA[0-9]*:'" \
+      echo \"phase: \$p\";
+      '$KUBECTL' get pod gpu-probe -o jsonpath='{range .status.containerStatuses[*]}{.state}{\"\\n\"}{end}';
+      '$KUBECTL' describe pod gpu-probe | tail -25;
+      docker exec '$NODE' sh -c 'ls -l /var/run/cdi /etc/cdi 2>&1; journalctl -u containerd --no-pager 2>/dev/null | grep -iE \"gpu-probe|cdi|error\" | tail -20';
+      '$KUBECTL' logs gpu-probe >'$OUT/pod-$strategy.out' 2>&1; echo '--- the pod says:'; cat '$OUT/pod-$strategy.out';
+      grep -qiE 'RTX|CUDA[0-9]*:' '$OUT/pod-$strategy.out'" \
       && gpu_seen="device plugin with DEVICE_LIST_STRATEGY=$strategy"
     "$KUBECTL" delete pod gpu-probe --wait=false >/dev/null 2>&1
   fi

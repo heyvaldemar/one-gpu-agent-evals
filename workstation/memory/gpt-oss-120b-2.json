@@ -1,0 +1,45 @@
+{
+ "_about": "A probe, never published: the half of gpt-oss-120b-memory-1 that did not run. On 24.11 the weights mapped from the file came up from --n-cpu-moe 30 down to 24 (23.7 GB of the card at 24; at 22 the card overflowed and generation fell to about a quarter), and every read-in configuration failed: b11429 no longer knows --no-mmap, whose place --load-mode none takes. This spec measures the read-in mode alone, from most experts on the CPU to the fewest that came up mapped, with the same server image, slot and calls, so the two modes compare on the environment's memory (anonymous against cached), the card and the time to ready. The first N that does not come up ends it. The host gives the environment more memory for this block only and puts it back after. Files carried in under /srv/line2, listed in /srv/line2/SHA256SUMS, as for memory-1.",
+ "probe": "gpt-oss-120b-memory-2",
+ "probes": "/etc/portfolio/probes",
+ "carry_in": "/srv/line2/SHA256SUMS",
+ "model": "gpt-oss-120b",
+ "models_dir": "/srv/line2/models",
+ "image": "ghcr.io/ggml-org/llama.cpp:server-cuda-b11429@sha256:a863a2d1dc2cbc5326c995ae380eec9c57f37a7e1cac944f0c6f43e4e9afff23",
+ "client_image": "docker.io/library/python:3.13-alpine@sha256:1e1f6334529d1fb26a2ef619d7cffb30a7c7d7cc1cc7338ebee283a58d1aeaca",
+ "base_args": [
+  "-m",
+  "/models/model.gguf",
+  "--alias",
+  "gpt-oss-120b",
+  "--jinja",
+  "-c",
+  "8192",
+  "-np",
+  "1",
+  "-ngl",
+  "99",
+  "--host",
+  "0.0.0.0",
+  "--port",
+  "8080"
+ ],
+ "gpu_flags": [
+  "--device",
+  "nvidia.com/gpu=all"
+ ],
+ "n_cpu_moe": [
+  30,
+  28,
+  26,
+  25,
+  24
+ ],
+ "mmap": [
+  "no-mmap"
+ ],
+ "ready_timeout_s": 1500,
+ "calls": 3,
+ "max_tokens": 128,
+ "budget_s": 3600
+}

@@ -6,3 +6,4 @@
 "workstation/memory_probe.py"	"        rs.docker_rm(SERVER)\n        time.sleep(2)"	"        time.sleep(2)"	"the probe leaves its server running"
 "workstation/memory_probe.py"	"        with open(os.path.join(out, name + \".server.log\"), \"w\", encoding=\"utf-8\") as f:\n            f.write(logs.stdout + logs.stderr)\n"	""	"the probe does not keep the server's log"
 "workstation/memory_probe.py"	"    names = sorted(n for n in os.listdir(out) if n != \"SHA256SUMS\")\n"	"    names = sorted(n for n in os.listdir(out) if n.endswith(\".jsonl\"))\n"	"the probe leaves files out of SHA256SUMS"
+"workstation/memory_probe.py"	"            if st not in (\"created\", \"running\"):\n"	"            if False:\n"	"the probe waits out the timeout for a server that has exited"

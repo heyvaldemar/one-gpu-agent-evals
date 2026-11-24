@@ -112,6 +112,19 @@ PY
 then pass "a server that never comes up fails, keeps its log, and the configuration with more on the card is skipped"; else fail "a server that never came up was not handled: $(tail -3 "$work/run4.txt")"; fi
 if [ -z "$(docker ps -aq -f name=^memprobe-server$)" ]; then pass "no server is left running after a failed configuration"; else fail "a failed configuration left its server running"; fi
 
+# A server that exits at once (on 24.11 a flag the server no longer knew):
+# the wait ends when it exits, not at the timeout, and says how it ended.
+spec "$work/exits.json" '["python3", "-I", "-c", "import sys; sys.exit(3)"]' '[30]' 3600
+probe "$work/exits.json" "$work/out6" >"$work/run6.txt" 2>&1
+if python3 -I - "$work/out6" <<'PY'
+import json, os, sys
+c = json.load(open(os.path.join(sys.argv[1], "manifest.json")))["configs"]
+assert "exited with code 3" in (c[0].get("failed") or ""), c
+assert c[0]["time_to_ready_s"] < 15, c
+PY
+then pass "a server that exits at once ends its wait at once, with its exit code"; else fail "a server that exited was waited for: $(tail -3 "$work/run6.txt")"; fi
+if [ -z "$(docker ps -aq -f name=^memprobe-server)" ]; then pass "no server or health check is left after a server that exited"; else fail "a container was left after a server that exited"; fi
+
 # A budget that would not hold a configuration starts none after the first.
 spec "$work/budget.json" "$STUB" '[30, 26, 22]' 5
 probe "$work/budget.json" "$work/out5" >"$work/run5.txt" 2>&1

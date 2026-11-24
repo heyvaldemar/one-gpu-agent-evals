@@ -4,7 +4,9 @@ environment's memory a model takes, measured, before a series of it is planned.
 
 A probe, never published. For each configuration the spec lists (how many
 layers keep their experts on the CPU, `--n-cpu-moe`, and whether the server
-maps the weights or reads them in, `--no-mmap`), in that order:
+maps the weights or reads them in, `--load-mode none`; the spec calls that
+mode no-mmap, the server's own flag of that name being gone by b11429), in
+that order:
 
   - the flagship's GPU server image starts the model on an internal Docker
     network, with a memory limit two GiB under the environment's own, so a
@@ -29,6 +31,7 @@ image is the one images.lock pins. --test skips the isolation check and the
 image pin for tests/memory_probe.sh, and the manifest says so.
 """
 import json
+import subprocess
 import os
 import re
 import shutil
@@ -149,7 +152,7 @@ def one(spec, out, name, n_cpu_moe, mode, limit_bytes):
     if n_cpu_moe is not None:
         args += ["--n-cpu-moe", str(n_cpu_moe)]
     if mode == "no-mmap":
-        args += ["--no-mmap"]
+        args += ["--load-mode", "none"]
     r_["server_args"] = args
     sampler = Sampler(os.path.join(out, name + ".samples.jsonl"))
     sampler.start()
@@ -172,14 +175,45 @@ def one(spec, out, name, n_cpu_moe, mode, limit_bytes):
         probe = ("import time, urllib.request\nt = time.time()\nwhile time.time() - t < %d:\n"
                  "    try:\n        urllib.request.urlopen('http://%s:8080/health', timeout=2); print('ready'); break\n"
                  "    except Exception: time.sleep(0.5)\n") % (wait, SERVER)
-        r = rs.run(["docker", "run", "--rm", "--network", NET, spec["client_image"], "python3", "-I", "-c", probe])
+        # The health check runs beside the server; meanwhile the server's own
+        # state is read every two seconds, so a server that exits (a flag it
+        # does not know, a model it cannot load) ends the wait at once rather
+        # than after the whole timeout.
+        ready_name = "%s-ready-%d" % (SERVER, int(t0 * 1000))  # its own name: a killed check's container may linger
+        waiter = subprocess.Popen(["docker", "run", "--rm", "--name", ready_name, "--network", NET,
+                                   spec["client_image"], "python3", "-I", "-c", probe],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        exited = False
+        while waiter.poll() is None:
+            st = rs.run(["docker", "inspect", "-f", "{{.State.Status}}", SERVER]).stdout.strip()
+            if st not in ("created", "running"):
+                exited = True
+                break
+            time.sleep(2)
+        # The check's container goes whichever way the wait ended. Docker can
+        # still be creating it when the server is seen to exit, so it is
+        # removed until none of that name is left, and only then is the
+        # client stopped.
+        for _ in range(30):
+            rs.docker_rm(ready_name)
+            if waiter.poll() is not None and not rs.run(
+                    ["docker", "ps", "-aq", "-f", "name=^%s$" % ready_name]).stdout.strip():
+                break
+            time.sleep(1)
+        if waiter.poll() is None:
+            waiter.kill()
+        ready_out, ready_err = waiter.communicate()
+        rs.docker_rm(ready_name)
         r_["time_to_ready_s"] = round(time.time() - t0, 1)
         state = rs.run(["docker", "inspect", "-f", "{{.State.Status}} {{.State.OOMKilled}} {{.State.ExitCode}}",
                         SERVER]).stdout.split()
         r_["container_state"] = state
-        if "ready" not in r.stdout:
+        if "ready" not in (ready_out or ""):
             r_["failed"] = ("the server was killed for memory" if len(state) > 1 and state[1] == "true"
-                            else "the server was not ready in %d s" % wait)
+                            else "the server exited with code %s before it was ready" % (state[2] if len(state) > 2 else "?")
+                            if exited else "the server was not ready in %d s" % wait)
+            if not exited and ready_err.strip():
+                r_["ready_check"] = ready_err.strip()[-300:]
             return r_
         r = rs.run(["docker", "run", "--rm", "--network", NET, "--read-only", "--tmpfs", "/tmp",
                     spec["client_image"], "python3", "-I", "-c", CALLS, "http://%s:8080" % SERVER, spec["model"],
