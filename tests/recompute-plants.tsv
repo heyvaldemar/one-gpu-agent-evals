@@ -12,3 +12,4 @@
 "README.md"	"None of the 24,936 calls failed"	"None of the 24,963 calls failed"	"the README counts the calls of line 1 other than the table does"
 "README.md"	"spread up to 19.5% apart"	"spread up to 12.0% apart"	"the README gives a smaller spread for Granite-4.0-1B than its series have"
 "README.md"	"the lower limit costs 0.7% there"	"the lower limit costs 0.1% there"	"the README gives a cost of the lower power limit the table does not"
+"workstation/plans/line1-4.json"	"\"series\": \"line1-4\""	"\"series\": \"line1-4\" "	"a series of line 1 whose plan here is not the one it ran from"

@@ -1,0 +1,127 @@
+{
+ "_about": "Line 1, the first series: the flagship's GPU server and load, Granite-4.0-1B and Granite-4.1-8B, at the card's default power limit and at 350 W, and with the server on four CPU cores. Paths are the environment's (ADR 3): what was carried in lives under /srv/line1 and is listed with its sha256 in /srv/line1/SHA256SUMS; this repository's files at /srv/line1/repo. scripts/validate.sh holds the server's arguments and images to the flagship's release.",
+ "series": "line1-4",
+ "probes": "/etc/portfolio/probes",
+ "carry_in": "/srv/line1/SHA256SUMS",
+ "accelerator": "GPU, NVIDIA GeForce RTX 4090, a workstation",
+ "flagship": {
+  "tag": "v1.9.0",
+  "sha256": "623da314d0e2c13a29bc85ef60cdf5ab975f542f3342448721e898fc6e29cb4d",
+  "archive": "/srv/line1/archive/kubernetes-air-gapped-ai-agent-v1.9.0.tar.gz",
+  "dir": "/srv/line1/flagship"
+ },
+ "images": {
+  "server": "ghcr.io/ggml-org/llama.cpp:server-cuda-b11429@sha256:a863a2d1dc2cbc5326c995ae380eec9c57f37a7e1cac944f0c6f43e4e9afff23",
+  "client": "docker.io/library/python:3.13-alpine@sha256:1e1f6334529d1fb26a2ef619d7cffb30a7c7d7cc1cc7338ebee283a58d1aeaca"
+ },
+ "models_dir": "/srv/line1/models",
+ "server": {
+  "args": [
+   "-m",
+   "/models/model.gguf",
+   "--alias",
+   "@MODEL@",
+   "--jinja",
+   "-c",
+   "65536",
+   "-np",
+   "8",
+   "-ngl",
+   "99",
+   "--metrics",
+   "--cache-ram",
+   "512",
+   "--reasoning",
+   "off",
+   "--host",
+   "0.0.0.0",
+   "--port",
+   "8080"
+  ],
+  "memory": "12g",
+  "gpu_flags": [
+   "--device",
+   "nvidia.com/gpu=all"
+  ]
+ },
+ "units": [
+  {
+   "id": "granite-4.0-1b-450w-all-cpus",
+   "model": "granite-4.0-1b",
+   "power_limit_w": 450,
+   "server_cpus": "all",
+   "levels": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "min_seconds": 30
+  },
+  {
+   "id": "granite-4.0-1b-350w-all-cpus",
+   "model": "granite-4.0-1b",
+   "power_limit_w": 350,
+   "server_cpus": "all",
+   "levels": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "min_seconds": 30
+  },
+  {
+   "id": "granite-4.0-1b-450w-4-cpus",
+   "model": "granite-4.0-1b",
+   "power_limit_w": 450,
+   "server_cpus": "0-3",
+   "levels": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "min_seconds": 30
+  },
+  {
+   "id": "granite-4.1-8b-450w-all-cpus",
+   "model": "granite-4.1-8b",
+   "power_limit_w": 450,
+   "server_cpus": "all",
+   "levels": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "min_seconds": 30
+  },
+  {
+   "id": "granite-4.1-8b-350w-all-cpus",
+   "model": "granite-4.1-8b",
+   "power_limit_w": 350,
+   "server_cpus": "all",
+   "levels": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "min_seconds": 30
+  },
+  {
+   "id": "granite-4.1-8b-450w-4-cpus",
+   "model": "granite-4.1-8b",
+   "power_limit_w": 450,
+   "server_cpus": "0-3",
+   "levels": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "min_seconds": 30
+  }
+ ]
+}

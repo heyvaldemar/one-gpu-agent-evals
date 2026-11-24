@@ -89,6 +89,27 @@ if python3 -I "$ROOT/scripts/recompute.py" set "$ROOT/results/line1" 2>"$work/se
 else
   fail "results/line1/TABLE.md is not the table its series give: $(tail -1 "$work/set.err")$(diff "$work/table.md" "$ROOT/results/line1/TABLE.md" | head -4)"
 fi
+# Each published series ran from a plan in this repository: the plan_sha256 its
+# series.json records is the sha256 of workstation/plans/<series>.json.
+if out="$(python3 -I - "$ROOT" <<'PY'
+import hashlib, json, os, sys
+root = sys.argv[1]; bad = []
+for s in sorted(os.listdir(os.path.join(root, "results/line1"))):
+    sj = os.path.join(root, "results/line1", s, "series.json")
+    if not os.path.isfile(sj):
+        continue
+    plan = os.path.join(root, "workstation/plans", s + ".json")
+    want = json.load(open(sj))["plan_sha256"]
+    got = hashlib.sha256(open(plan, "rb").read()).hexdigest() if os.path.isfile(plan) else "missing"
+    if got != want:
+        bad.append("%s: plan %s" % (s, "missing" if got == "missing" else "is not the one its series.json records"))
+print("; ".join(bad)); sys.exit(1 if bad else 0)
+PY
+)"; then
+  pass "every series of line 1 ran from the plan of its name in workstation/plans, by sha256"
+else
+  fail "a series of line 1 has no plan here that its series.json records: $out"
+fi
 # Every figure the README gives for line 1 is computed here from TABLE.md,
 # and must be in the README as written.
 if python3 -I - "$ROOT/results/line1/TABLE.md" "$ROOT/README.md" >"$work/readme.txt" 2>&1 <<'PY2'
