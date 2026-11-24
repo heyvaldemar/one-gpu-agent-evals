@@ -92,17 +92,26 @@ fi
 # Each published series ran from a plan in this repository: the plan_sha256 its
 # series.json records is the sha256 of workstation/plans/<series>.json.
 if out="$(python3 -I - "$ROOT" <<'PY'
-import hashlib, json, os, sys
-root = sys.argv[1]; bad = []
-for s in sorted(os.listdir(os.path.join(root, "results/line1"))):
-    sj = os.path.join(root, "results/line1", s, "series.json")
-    if not os.path.isfile(sj):
+import hashlib, json, os, re, sys
+root = sys.argv[1]; bad = []; seen = 0
+top = os.path.join(root, "results/line1")
+for s in sorted(os.listdir(top)):
+    if not os.path.isdir(os.path.join(top, s)):
         continue
+    seen += 1
+    sj = os.path.join(top, s, "series.json")
+    if not os.path.isfile(sj):
+        bad.append("%s: no series.json" % s); continue
+    want = json.load(open(sj)).get("plan_sha256")
+    if not isinstance(want, str) or not re.fullmatch(r"[0-9a-f]{64}", want):
+        bad.append("%s: series.json records no plan sha256" % s); continue
     plan = os.path.join(root, "workstation/plans", s + ".json")
-    want = json.load(open(sj))["plan_sha256"]
-    got = hashlib.sha256(open(plan, "rb").read()).hexdigest() if os.path.isfile(plan) else "missing"
-    if got != want:
-        bad.append("%s: plan %s" % (s, "missing" if got == "missing" else "is not the one its series.json records"))
+    if not os.path.isfile(plan):
+        bad.append("%s: no plan of its name" % s); continue
+    if hashlib.sha256(open(plan, "rb").read()).hexdigest() != want:
+        bad.append("%s: plan is not the one its series.json records" % s)
+if seen != 3:
+    bad.append("%d series under results/line1, not 3" % seen)
 print("; ".join(bad)); sys.exit(1 if bad else 0)
 PY
 )"; then
