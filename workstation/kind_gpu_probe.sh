@@ -118,15 +118,20 @@ if [ "$TEST" = 1 ]; then skip tools "--test: the machine's own kind and kubectl"
 else step tools "" bash -c "$(declare -f pinned); ROOT='$ROOT'; pinned kind '$KIND' && pinned kubectl '$KUBECTL'" || exit 1; fi
 
 # the GPU as the environment and Docker see it
-CDI_DIRS=""; HOOKS=""
+CDI_DIRS=""; HOOKS=""; CDI_HOOK=""
 if [ "$TEST" = 1 ]; then skip gpu "--test: no GPU here"; skip docker-gpu "--test: no GPU here"
 else
   step gpu "" bash -c 'nvidia-smi -L && ls -l /dev/dxg && ls -l /etc/cdi /var/run/cdi 2>/dev/null; (nvidia-ctk cdi list 2>/dev/null || true)' || exit 1
-  for d in /etc/cdi /var/run/cdi; do ls "$d"/*.yaml "$d"/*.json >/dev/null 2>&1 && CDI_DIRS="$CDI_DIRS $d"; done
+  # ls exits non-zero when either pattern matches nothing: list, then look at the output.
+  for d in /etc/cdi /var/run/cdi; do ls "$d"/*.yaml "$d"/*.json 2>/dev/null | grep -q . && CDI_DIRS="$CDI_DIRS $d"; done
   # The binaries the spec's hooks call run in the node's namespace, so they are mounted in too.
   HOOKS="$(cat /etc/cdi/*.y*ml /etc/cdi/*.json /var/run/cdi/*.y*ml /var/run/cdi/*.json 2>/dev/null \
            | grep -oE '/usr(/local)?/bin/[A-Za-z0-9._-]+' | sort -u | while read -r p; do [ -x "$p" ] && echo "$p"; done | tr '\n' ' ')"
-  echo "cdi dirs:$CDI_DIRS; hook binaries: ${HOOKS:-none}" >"$OUT/cdi.txt"
+  # The device plugin writes its own CDI spec, whose hooks call nvidia-ctk unless told otherwise;
+  # 24.11 the node had only nvidia-cdi-hook and every pod failed at runc's createContainer hook.
+  for h in $HOOKS; do case "$h" in */nvidia-cdi-hook) CDI_HOOK="$h";; esac; done
+  if [ -z "$CDI_HOOK" ]; then for h in $HOOKS; do case "$h" in */nvidia-ctk) CDI_HOOK="$h";; esac; done; fi
+  echo "cdi dirs:$CDI_DIRS; hook binaries: ${HOOKS:-none}; plugin hook: ${CDI_HOOK:-none}" >"$OUT/cdi.txt"
   step docker-gpu "the CUDA image's --list-devices through Docker's CDI" \
     bash -c "docker run --rm --device nvidia.com/gpu=all '$CUDA_IMAGE' --list-devices 2>&1 | tee /dev/stderr | grep -qiE 'RTX|CUDA[0-9]*:'" || exit 1
 fi
@@ -218,6 +223,7 @@ spec:
             - {name: NVIDIA_DRIVER_ROOT, value: /}
             - {name: CONTAINER_DRIVER_ROOT, value: /driver-root}
             - {name: LD_LIBRARY_PATH, value: /usr/lib/wsl/lib}
+            - {name: NVIDIA_CDI_HOOK_PATH, value: "${CDI_HOOK:-/usr/bin/nvidia-cdi-hook}"}
           securityContext: {privileged: true}
           volumeMounts:
             - {name: device-plugin, mountPath: /var/lib/kubelet/device-plugins}
@@ -327,6 +333,9 @@ for strategy in cdi-cri cdi-annotations; do
       '$KUBECTL' logs gpu-probe >'$OUT/pod-$strategy.out' 2>&1; echo '--- the pod says:'; cat '$OUT/pod-$strategy.out';
       grep -qiE 'RTX|CUDA[0-9]*:' '$OUT/pod-$strategy.out'" \
       && gpu_seen="device plugin with DEVICE_LIST_STRATEGY=$strategy"
+    # Which binaries the hooks in the plugin's spec call, beside whether the node has them.
+    docker exec "$NODE" sh -c 'for p in $(cat /var/run/cdi/*.json 2>/dev/null | grep -oE "/usr(/local)?/bin/[A-Za-z0-9._-]+" | sort -u); do
+      if [ -x "$p" ]; then echo "$p present"; else echo "$p MISSING"; fi; done' >"$OUT/pod-$strategy.hooks" 2>&1
     "$KUBECTL" delete pod gpu-probe --wait=false >/dev/null 2>&1
   fi
   [ -n "$gpu_seen" ] && break
