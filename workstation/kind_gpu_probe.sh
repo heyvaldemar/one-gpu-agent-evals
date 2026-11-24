@@ -20,8 +20,13 @@
 #   load        the CUDA and device plugin images loaded into the node
 #   digest      whether the node finds the CUDA image by its digest, as the
 #               flagship's and the gateway's manifests name it
+#   libs        where NVML loads from, asked in the node and in a pod with
+#               the plugin's mounts: the library under the driver root and
+#               /usr/lib/wsl at its own path, ldd and nvidia-smi -L for each
+#               (a finding, not a failure: 24.11 the plugin could not load NVML)
 #   plugin-*    NVIDIA's device plugin (the gateway's v0.20.1) with one CDI
-#               strategy, and whether the node then offers nvidia.com/gpu
+#               strategy, /usr/lib/wsl mounted at its own path, and whether
+#               the node then offers nvidia.com/gpu
 #   pod-*       a pod asking for nvidia.com/gpu runs the CUDA image's
 #               --list-devices, and whether it names the card
 #
@@ -178,7 +183,7 @@ info() {  # info NAME NOTE CMD...: like step, but a negative answer is a finding
 }
 info digest "the node finds the CUDA image by the digest the manifests name, without a pull" \
   docker exec "$NODE" crictl inspecti -o go-template --template '{{.status.id}} {{.status.repoDigests}}' "$CUDA_IMAGE"
-if [ "$TEST" = 1 ]; then skip plugin "--test: no GPU here"; skip pod "--test: no GPU here"; exit 0; fi
+if [ "$TEST" = 1 ]; then skip libs "--test: no GPU here"; skip plugin "--test: no GPU here"; skip pod "--test: no GPU here"; exit 0; fi
 
 plugin_yaml() {  # plugin_yaml STRATEGY: the gateway's DaemonSet, with the GPU-P paths and the driver root
   cat <<EOF
@@ -212,22 +217,75 @@ spec:
             - {name: DEVICE_LIST_STRATEGY, value: "$1"}
             - {name: NVIDIA_DRIVER_ROOT, value: /}
             - {name: CONTAINER_DRIVER_ROOT, value: /driver-root}
-            - {name: LD_LIBRARY_PATH, value: /driver-root/usr/lib/wsl/lib}
+            - {name: LD_LIBRARY_PATH, value: /usr/lib/wsl/lib}
           securityContext: {privileged: true}
           volumeMounts:
             - {name: device-plugin, mountPath: /var/lib/kubelet/device-plugins}
             - {name: config, mountPath: /config, readOnly: true}
             - {name: driver-root, mountPath: /driver-root, readOnly: true}
+            - {name: wsl, mountPath: /usr/lib/wsl, readOnly: true}
             - {name: cdi, mountPath: /var/run/cdi}
             - {name: dxg, mountPath: /dev/dxg}
       volumes:
         - {name: device-plugin, hostPath: {path: /var/lib/kubelet/device-plugins, type: Directory}}
         - {name: config, configMap: {name: nvidia-device-plugin}}
         - {name: driver-root, hostPath: {path: /}}
+        - {name: wsl, hostPath: {path: /usr/lib/wsl, type: Directory}}
         - {name: cdi, hostPath: {path: /var/run/cdi, type: DirectoryOrCreate}}
         - {name: dxg, hostPath: {path: /dev/dxg}}
 EOF
 }
+# What the libs step runs, in the node and in a pod: for each place NVML could
+# load from, the file, ldd, and nvidia-smi -L (which loads NVML) with that
+# directory first on the library path.
+LIBS_SCRIPT='for d in /driver-root/usr/lib/wsl/lib /usr/lib/wsl/lib; do
+  [ -d "$d" ] || { echo "== $d: absent"; continue; }
+  echo "== $d"; ls -la "$d/libnvidia-ml.so.1" 2>&1; ls "$(dirname "$d")" 2>&1 | tr "\n" " "; echo
+  LD_LIBRARY_PATH="$d" ldd "$d/libnvidia-ml.so.1" 2>&1 | grep -E "not found|=>" | head -8
+  if [ -x "$d/nvidia-smi" ]; then o="$(LD_LIBRARY_PATH="$d" "$d/nvidia-smi" -L 2>&1)"; rc=$?; printf "%s\n" "$o" | head -3; echo "nvidia-smi exit $rc"; else echo "no nvidia-smi in $d"; fi
+done'
+libs_pod_yaml() {
+  cat <<EOF
+apiVersion: v1
+kind: Pod
+metadata: {name: nvml-libs, namespace: kube-system}
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  nodeSelector: {inference.heyvaldemar.com/accelerator: nvidia}
+  containers:
+    - name: libs
+      image: kindgpu-probe/cuda:local
+      imagePullPolicy: Never
+      command: ["sh", "-c", "\$(LIBS)"]
+      env:
+        - name: LIBS
+          valueFrom: {configMapKeyRef: {name: nvml-libs, key: libs.sh}}
+      securityContext: {privileged: true}
+      volumeMounts:
+        - {name: driver-root, mountPath: /driver-root, readOnly: true}
+        - {name: wsl, mountPath: /usr/lib/wsl, readOnly: true}
+        - {name: dxg, mountPath: /dev/dxg}
+  volumes:
+    - {name: driver-root, hostPath: {path: /}}
+    - {name: wsl, hostPath: {path: /usr/lib/wsl, type: Directory}}
+    - {name: dxg, hostPath: {path: /dev/dxg}}
+EOF
+}
+libs() {
+  echo "### in the node"; docker exec "$NODE" sh -c "$LIBS_SCRIPT"
+  echo "### in a pod with the plugin's mounts"
+  printf '%s\n' "$LIBS_SCRIPT" >"$OUT/libs.sh"
+  libs_pod_yaml >"$OUT/libs-pod.yaml"
+  "$KUBECTL" -n kube-system create configmap nvml-libs --from-file=libs.sh="$OUT/libs.sh" >/dev/null || return 1
+  "$KUBECTL" apply -f "$OUT/libs-pod.yaml" >/dev/null || return 1
+  local p=""; for _ in $(seq 1 60); do p="$("$KUBECTL" -n kube-system get pod nvml-libs -o jsonpath='{.status.phase}')"; case "$p" in Succeeded|Failed) break;; esac; sleep 2; done
+  "$KUBECTL" -n kube-system logs nvml-libs 2>&1
+  "$KUBECTL" -n kube-system delete pod nvml-libs --wait=false >/dev/null 2>&1
+  "$KUBECTL" -n kube-system delete configmap nvml-libs >/dev/null 2>&1
+  [ "$p" = Succeeded ]
+}
+info libs "where NVML loads from, in the node and in a pod with the plugin's mounts" libs
 pod_yaml() {
   cat <<EOF
 apiVersion: v1

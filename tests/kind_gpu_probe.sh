@@ -34,7 +34,7 @@ state = {s["step"]: s["state"] for s in m["steps"]}
 assert m["test"] is True, m
 for s in ("images", "cluster", "node", "load"):
     assert state.get(s) == "PASS", (s, state)
-for s in ("isolation", "tools", "gpu", "docker-gpu", "plugin", "pod"):
+for s in ("isolation", "tools", "gpu", "docker-gpu", "libs", "plugin", "pod"):
     assert state.get(s) == "SKIP", (s, state)
 kind_yaml = open(os.path.join(out, "kind.yaml")).read()
 assert "inference.heyvaldemar.com/accelerator: nvidia" in kind_yaml and "extraMounts" not in kind_yaml, kind_yaml
